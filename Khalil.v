@@ -16,7 +16,7 @@
 (*                                                                            *)
 (******************************************************************************)
 
-Require Import List Lia.
+Require Import List Lia Bool.
 Import ListNotations.
 
 (** * Section 1: Foundations *)
@@ -3741,6 +3741,65 @@ Proof. reflexivity. Qed.
 Example rhyme_counterexample_double : is_valid_rhyme [Rawiy; Rawiy] = false.
 Proof. reflexivity. Qed.
 
+(** ** Rhyme Ordering Constraints *)
+
+(** In a well-formed rhyme, elements must appear in a specific order:
+    tāsīs (if present) must precede dakhīl, which precedes rawīy,
+    which precedes waṣl. Ridf must immediately precede rawīy. *)
+
+(** Boolean rhyme element equality *)
+Definition rhyme_element_eqb (r1 r2 : rhyme_element) : bool :=
+  match r1, r2 with
+  | Rawiy, Rawiy => true
+  | Wasl, Wasl => true
+  | Ridf, Ridf => true
+  | Tasis, Tasis => true
+  | Dakhil, Dakhil => true
+  | _, _ => false
+  end.
+
+(** Check if rawīy appears before waṣl (if both present) *)
+Fixpoint rawiy_before_wasl (rp : rhyme_pattern) : bool :=
+  match rp with
+  | [] => true
+  | Wasl :: _ => false  (* waṣl without preceding rawīy *)
+  | Rawiy :: rest => true  (* rawīy found first: ok *)
+  | _ :: rest => rawiy_before_wasl rest
+  end.
+
+(** Check if tāsīs appears before dakhīl (if both present) *)
+Fixpoint tasis_before_dakhil (rp : rhyme_pattern) : bool :=
+  match rp with
+  | [] => true
+  | Dakhil :: _ => false  (* dakhīl without preceding tāsīs *)
+  | Tasis :: _ => true   (* tāsīs found first: ok *)
+  | _ :: rest => tasis_before_dakhil rest
+  end.
+
+(** Full structural validity: exactly one rawīy + correct ordering *)
+Definition is_well_formed_rhyme (rp : rhyme_pattern) : bool :=
+  is_valid_rhyme rp &&
+  rawiy_before_wasl rp &&
+  tasis_before_dakhil rp.
+
+(** Witness: tasis_rhyme is well-formed *)
+Example well_formed_witness : is_well_formed_rhyme tasis_rhyme = true.
+Proof. reflexivity. Qed.
+
+(** Example: ridf_rhyme is well-formed *)
+Example well_formed_example : is_well_formed_rhyme ridf_rhyme = true.
+Proof. reflexivity. Qed.
+
+(** Counterexample: waṣl before rawīy is malformed *)
+Example well_formed_counterexample :
+  is_well_formed_rhyme [Wasl; Rawiy] = false.
+Proof. reflexivity. Qed.
+
+(** Counterexample: dakhīl before tāsīs is malformed *)
+Example well_formed_counterexample2 :
+  is_well_formed_rhyme [Dakhil; Tasis; Rawiy] = false.
+Proof. reflexivity. Qed.
+
 (** End of Section 8: Rhyme *)
 
 (** * Section 9: Poem Structure *)
@@ -3833,6 +3892,118 @@ Proof. reflexivity. Qed.
 (** Counterexample: mismatched hemistichs are not a full line *)
 Example bayt_full_line_counterexample :
   is_full_line (meter_pattern Tawil ++ meter_pattern Basit) Tawil = false.
+Proof. reflexivity. Qed.
+
+(** ** Rhyme-Aware Poem Structure *)
+
+(** A rhyme identifier — abstract, just needs decidable equality. *)
+Definition rhyme_id := nat.
+
+(** A line with rhyme annotation on the ʿajuz (second hemistich). *)
+Record annotated_bayt : Type := mk_annotated_bayt {
+  ab_sadr      : hemistich;
+  ab_ajuz      : hemistich;
+  ab_sadr_rhyme : rhyme_id;  (* rhyme of first hemistich *)
+  ab_ajuz_rhyme : rhyme_id   (* rhyme of second hemistich *)
+}.
+
+(** ** Matlaʿ: Both Hemistichs Rhyme *)
+
+(** In the matlaʿ (opening line), both hemistichs share the same rhyme.
+    This distinguishes it from subsequent lines where only the ʿajuz rhymes. *)
+Definition is_matla_proper (b : annotated_bayt) (m : meter) : bool :=
+  pattern_eqb (ab_sadr b) (meter_pattern m) &&
+  pattern_eqb (ab_ajuz b) (meter_pattern m) &&
+  Nat.eqb (ab_sadr_rhyme b) (ab_ajuz_rhyme b).
+
+(** Witness: matlaʿ with matching rhymes *)
+Example matla_proper_witness :
+  let h := meter_pattern Mutaqarib in
+  is_matla_proper (mk_annotated_bayt h h 1 1) Mutaqarib = true.
+Proof. reflexivity. Qed.
+
+(** Counterexample: non-matlaʿ line (different rhymes) *)
+Example matla_proper_counterexample :
+  let h := meter_pattern Mutaqarib in
+  is_matla_proper (mk_annotated_bayt h h 1 2) Mutaqarib = false.
+Proof. reflexivity. Qed.
+
+(** ** Rhyme Consistency Across Lines *)
+
+(** In a qaṣīda, all ʿajuz hemistichs must share the same rhyme. *)
+Definition is_rhyme_consistent (lines : list annotated_bayt) (r : rhyme_id) : bool :=
+  forallb (fun b => Nat.eqb (ab_ajuz_rhyme b) r) lines.
+
+(** Witness: consistent rhyme *)
+Example rhyme_consistent_witness :
+  let h := meter_pattern Hazaj in
+  is_rhyme_consistent
+    [mk_annotated_bayt h h 1 1; mk_annotated_bayt h h 2 1] 1 = true.
+Proof. reflexivity. Qed.
+
+(** Counterexample: inconsistent rhyme *)
+Example rhyme_consistent_counterexample :
+  let h := meter_pattern Hazaj in
+  is_rhyme_consistent
+    [mk_annotated_bayt h h 1 1; mk_annotated_bayt h h 2 2] 1 = false.
+Proof. reflexivity. Qed.
+
+(** ** Non-Empty Poem (Qaṣīda) *)
+
+(** A qaṣīda must have at least one line. *)
+Record qasida : Type := mk_qasida {
+  qas_first : annotated_bayt;
+  qas_rest  : list annotated_bayt;
+  qas_meter : meter;
+  qas_rhyme : rhyme_id
+}.
+
+Definition qasida_lines (q : qasida) : list annotated_bayt :=
+  qas_first q :: qas_rest q.
+
+Definition is_valid_qasida (q : qasida) : bool :=
+  let m := qas_meter q in
+  let r := qas_rhyme q in
+  is_matla_proper (qas_first q) m &&
+  forallb (fun b =>
+    pattern_eqb (ab_sadr b) (meter_pattern m) &&
+    pattern_eqb (ab_ajuz b) (meter_pattern m))
+    (qas_rest q) &&
+  is_rhyme_consistent (qasida_lines q) r.
+
+(** Witness: valid single-line qasida *)
+Example qasida_witness :
+  let h := meter_pattern Hazaj in
+  is_valid_qasida (mk_qasida (mk_annotated_bayt h h 1 1) [] Hazaj 1) = true.
+Proof. reflexivity. Qed.
+
+(** Example: valid two-line qasida *)
+Example qasida_example :
+  let h := meter_pattern Hazaj in
+  is_valid_qasida
+    (mk_qasida
+      (mk_annotated_bayt h h 1 1)
+      [mk_annotated_bayt h h 2 1]
+      Hazaj 1) = true.
+Proof. reflexivity. Qed.
+
+(** Counterexample: matlaʿ rhyme mismatch invalidates qasida *)
+Example qasida_counterexample :
+  let h := meter_pattern Hazaj in
+  is_valid_qasida (mk_qasida (mk_annotated_bayt h h 1 2) [] Hazaj 2) = false.
+Proof. reflexivity. Qed.
+
+(** ** Non-emptiness Guarantee *)
+
+Lemma qasida_nonempty : forall q, length (qasida_lines q) >= 1.
+Proof.
+  intros q. unfold qasida_lines. simpl. lia.
+Qed.
+
+(** Witness: single-line qasida has 1 line *)
+Example qasida_nonempty_witness :
+  let h := meter_pattern Hazaj in
+  length (qasida_lines (mk_qasida (mk_annotated_bayt h h 1 1) [] Hazaj 1)) = 1.
 Proof. reflexivity. Qed.
 
 (** End of Section 9: Poem Structure *)

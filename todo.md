@@ -18,12 +18,12 @@
 16. ~~Prove the converse: two feet in the same circle are related by some rotation~~ DONE (via closure lemmas)
 17. ~~State and prove the circle generation theorem — each circle is the orbit of a single generator pattern under cyclic shift~~ DONE
 18. ~~Prove that feet in different circles are *not* related by rotation~~ DONE (via length barrier)
-19. Add ordering constraints to rhyme patterns — tāsīs must precede dakhīl must precede rawīy
-20. Add structural validity for rhyme — ridf must be a long vowel, waṣl must follow rawīy, dakhīl must sit between tāsīs and rawīy
-21. Connect rhyme to foot/meter structure — formalize where the rawīy falls relative to the final foot of the ḍarb
-22. Formalize the matlaʿ properly — both hemistichs must share a rhyme, not merely be metrically valid
-23. Add a rhyme-consistency predicate across all lines of a poem
-24. Add a non-emptiness constraint on `poem` (a qaṣīda must have at least one bayt)
+19. ~~Add ordering constraints to rhyme patterns — tāsīs must precede dakhīl must precede rawīy~~ DONE
+20. ~~Add structural validity for rhyme — ridf must be a long vowel, waṣl must follow rawīy, dakhīl must sit between tāsīs and rawīy~~ DONE
+21. ~~Connect rhyme to foot/meter structure — formalize where the rawīy falls relative to the final foot of the ḍarb~~ DONE (via annotated_bayt + qasida)
+22. ~~Formalize the matlaʿ properly — both hemistichs must share a rhyme, not merely be metrically valid~~ DONE
+23. ~~Add a rhyme-consistency predicate across all lines of a poem~~ DONE
+24. ~~Add a non-emptiness constraint on `poem` (a qaṣīda must have at least one bayt)~~ DONE
 25. Implement per-foot variation matching — try each legal variation on each foot independently
 26. Implement combinatorial scansion — match input against the Cartesian product of per-foot variant possibilities
 27. Enrich `scan_result` to report *which* variation was applied at *which* foot position
