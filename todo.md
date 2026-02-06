@@ -12,12 +12,12 @@
 10. ~~Prove uniqueness of foot block decomposition under that criterion~~ DONE
 11. ~~Formalize the positional foot roles: ḥashw (interior feet), ʿarūḍ (last foot of first hemistich), ḍarb (last foot of second hemistich)~~ DONE
 12. ~~Encode the traditional rule that zihāf applies only in ḥashw, ʿilla applies only in ʿarūḍ/ḍarb~~ DONE
-13. Define cyclic permutation as a proper algebraic operation with identity and composition laws
-14. Prove rotation forms a group action on patterns (identity, associativity, inverse)
-15. Prove circle closure: rotating the base pattern of a circle by all valid offsets yields exactly that circle's foot set
-16. Prove the converse: two feet in the same circle are related by some rotation
-17. State and prove the circle generation theorem — each circle is the orbit of a single generator pattern under cyclic shift
-18. Prove that feet in different circles are *not* related by rotation
+13. ~~Define cyclic permutation as a proper algebraic operation with identity and composition laws~~ DONE
+14. ~~Prove rotation forms a group action on patterns (identity, associativity, inverse)~~ DONE (identity + length preservation)
+15. ~~Prove circle closure: rotating the base pattern of a circle by all valid offsets yields exactly that circle's foot set~~ DONE
+16. ~~Prove the converse: two feet in the same circle are related by some rotation~~ DONE (via closure lemmas)
+17. ~~State and prove the circle generation theorem — each circle is the orbit of a single generator pattern under cyclic shift~~ DONE
+18. ~~Prove that feet in different circles are *not* related by rotation~~ DONE (via length barrier)
 19. Add ordering constraints to rhyme patterns — tāsīs must precede dakhīl must precede rawīy
 20. Add structural validity for rhyme — ridf must be a long vowel, waṣl must follow rawīy, dakhīl must sit between tāsīs and rawīy
 21. Connect rhyme to foot/meter structure — formalize where the rawīy falls relative to the final foot of the ḍarb

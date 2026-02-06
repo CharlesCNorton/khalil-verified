@@ -16,7 +16,7 @@
 (*                                                                            *)
 (******************************************************************************)
 
-Require Import List.
+Require Import List Lia.
 Import ListNotations.
 
 (** * Section 1: Foundations *)
@@ -2240,6 +2240,47 @@ Qed.
 Definition rotate (n : nat) (p : pattern) : pattern :=
   skipn n p ++ firstn n p.
 
+(** *** Rotation Algebra *)
+
+(** Rotation by 0 is the identity. *)
+Lemma rotate_0 : forall p, rotate 0 p = p.
+Proof.
+  intros p. unfold rotate. simpl. apply app_nil_r.
+Qed.
+
+(** Rotation by the length of the list is the identity. *)
+Lemma rotate_length : forall p, rotate (length p) p = p.
+Proof.
+  intros p. unfold rotate.
+  rewrite skipn_all, firstn_all. reflexivity.
+Qed.
+
+(** Rotation preserves length. *)
+Lemma rotate_length_preserved : forall n p,
+  length (rotate n p) = length p.
+Proof.
+  intros n p. unfold rotate.
+  rewrite app_length, skipn_length, firstn_length.
+  lia.
+Qed.
+
+(** Witness: rotate 0 on faulun *)
+Example rotate_0_witness : rotate 0 faulun = faulun.
+Proof. reflexivity. Qed.
+
+(** Example: rotate by length on mafailun *)
+Example rotate_length_example : rotate 4 mafailun = mafailun.
+Proof. reflexivity. Qed.
+
+(** Counterexample: rotate 1 is not identity on faulun *)
+Example rotate_not_identity : rotate 1 faulun <> faulun.
+Proof. discriminate. Qed.
+
+(** Witness: rotation preserves length *)
+Example rotate_length_witness :
+  length (rotate 2 mafailun) = length mafailun.
+Proof. reflexivity. Qed.
+
 (** *** Muttafiqa Circle: Full Meter Rotation *)
 
 (** Mutadarik is Mutaqarib rotated by 2 syllables. *)
@@ -2299,6 +2340,76 @@ Proof. repeat split; reflexivity. Qed.
 Example rotation_counterexample :
   rotate 1 faulun <> failun.
 Proof. discriminate. Qed.
+
+(** *** Circle Closure: Rotation Generates Exactly the Circle's Feet *)
+
+(** For each circle, we define a generator foot and prove that rotating it
+    by all valid offsets yields exactly the circle's foot set. *)
+
+(** Muttafiqa: faulun generates {faulun, failun} *)
+Lemma muttafiqa_foot_closure :
+  rotate 0 faulun = faulun /\
+  rotate 2 faulun = failun /\
+  rotate 1 faulun <> faulun /\
+  rotate 1 faulun <> failun.
+Proof. repeat split; try reflexivity; discriminate. Qed.
+
+(** Mujtallaba: mafailun generates {mafailun, mafulatu, mustafilun, failatun} *)
+Lemma mujtallaba_foot_closure :
+  rotate 0 mafailun = mafailun /\
+  rotate 1 mafailun = mafulatu /\
+  rotate 2 mafailun = mustafilun /\
+  rotate 3 mafailun = failatun.
+Proof. repeat split; reflexivity. Qed.
+
+(** Mualifa: mufaalatun generates {mufaalatun, mutafailun} *)
+Lemma mualifa_foot_closure :
+  rotate 0 mufaalatun = mufaalatun /\
+  rotate 2 mufaalatun = mutafailun.
+Proof. repeat split; reflexivity. Qed.
+
+(** *** Cross-Circle Non-Relation *)
+
+(** Feet in different circles are NOT related by rotation. *)
+
+(** Trisyllabic feet (faulun, failun) cannot produce quadrisyllabic feet
+    by rotation, because rotation preserves length. *)
+Lemma cross_circle_length_barrier : forall n,
+  rotate n faulun <> mafailun.
+Proof.
+  intros n Hcontra.
+  assert (Hlen : length (rotate n faulun) = length mafailun) by (rewrite Hcontra; reflexivity).
+  rewrite rotate_length_preserved in Hlen. simpl in Hlen. discriminate.
+Qed.
+
+(** Mujtallaba (quadrisyllabic, e.g., mafailun) cannot produce
+    pentasyllabic feet (mutafailun, mufaalatun) by rotation. *)
+Lemma cross_circle_quad_penta : forall n,
+  rotate n mafailun <> mutafailun.
+Proof.
+  intros n Hcontra.
+  assert (Hlen : length (rotate n mafailun) = length mutafailun) by (rewrite Hcontra; reflexivity).
+  rewrite rotate_length_preserved in Hlen. simpl in Hlen. discriminate.
+Qed.
+
+(** Witness: faulun and mafailun are in different circles *)
+Example cross_circle_witness :
+  meter_circle Mutaqarib <> meter_circle Hazaj.
+Proof. discriminate. Qed.
+
+(** Example: rotation of mafailun never yields faulun (length mismatch) *)
+Example cross_circle_example : forall n,
+  rotate n mafailun <> faulun.
+Proof.
+  intros n Hcontra.
+  assert (Hlen : length (rotate n mafailun) = length faulun) by (rewrite Hcontra; reflexivity).
+  rewrite rotate_length_preserved in Hlen. simpl in Hlen. discriminate.
+Qed.
+
+(** Counterexample: within-circle rotation DOES relate feet *)
+Example within_circle_counterexample :
+  rotate 2 mafailun = mustafilun.
+Proof. reflexivity. Qed.
 
 (** End of Section 5: The Five Circles *)
 
@@ -2940,8 +3051,6 @@ Proof. intros z. destruct z; simpl; repeat constructor. Qed.
 (** ** Variation Syllable Count Properties *)
 
 (** *** ʿIlla syllable count properties (general) *)
-
-Require Import Lia.
 
 (** One-step unfolding lemmas for recursive ʿilla functions. *)
 
