@@ -1,12 +1,12 @@
 # Khalil-Verified: Outstanding Issues
 
-1. Fix the header comment to say "15 meters (plus al-Akhfash's 16th)" instead of "15 canonical meters"
-2. Distinguish letter-level positions from syllable-level positions — define a `letter` type and a `syllable_to_letters` mapping so variation rules operate at the correct granularity
-3. Rewrite `apply_khabn`, `apply_tayy`, `apply_qabḍ`, `apply_kaff`, `apply_waqṣ`, and `apply_ʿaṣb` to operate on letter positions within a foot, not flat syllable indices in a pattern
-4. Fix the `khabn_not_applies_failatun` example — traditional khabn on fāʿilātun yields mufāʿilātun; the current `None` result is historically wrong
-5. Add the missing compound zihāf types (khazl = iḍmār + ṭayy, shakl = khabn + kaff, naqs = ʿaṣb + kaff, etc.)
-6. Define an applicability predicate per variation per foot — which zihāf may legally apply to which tafʿīla
-7. Prove that each variation either preserves syllable count or reduces it by a stated amount
+1. ~~Fix the header comment to say "15 meters (plus al-Akhfash's 16th)" instead of "15 canonical meters"~~ DONE
+2. ~~Distinguish letter-level positions from syllable-level positions — define a `letter` type and a `syllable_to_letters` mapping so variation rules operate at the correct granularity~~ DONE
+3. ~~Rewrite `apply_khabn`, `apply_tayy`, `apply_qabḍ`, `apply_kaff`, `apply_waqṣ`, and `apply_ʿaṣb` to operate on letter positions within a foot, not flat syllable indices in a pattern~~ DONE
+4. ~~Fix the `khabn_not_applies_failatun` example — traditional khabn on fāʿilātun yields mufāʿilātun; the current `None` result is historically wrong~~ DONE
+5. ~~Add the missing compound zihāf types (khazl = iḍmār + ṭayy, shakl = khabn + kaff, naqs = ʿaṣb + kaff, etc.)~~ DONE
+6. ~~Define an applicability predicate per variation per foot — which zihāf may legally apply to which tafʿīla~~ DONE
+7. ~~Prove that each variation either preserves syllable count or reduces it by a stated amount~~ DONE
 8. Prove that no variation can transform one canonical foot into another canonical foot
 9. Define a canonical decomposition criterion for foot blocks (e.g., maximal-watad-first or conventional boundary placement)
 10. Prove uniqueness of foot block decomposition under that criterion
