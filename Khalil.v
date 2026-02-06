@@ -3163,6 +3163,142 @@ Proof. exists mafailun. split; reflexivity. Qed.
 
 (** End of Section 6: Variation Rules *)
 
+(** * Section 6b: Foot Positions and Variation Scope *)
+
+(** In a hemistich, feet occupy three positional roles:
+    - Ḥashw (حشو, "stuffing"): all interior feet (not the last)
+    - ʿArūḍ (عروض): the last foot of the first hemistich (ṣadr)
+    - Ḍarb (ضرب): the last foot of the second hemistich (ʿajuz)
+
+    The traditional rule: zihāf applies only in ḥashw positions;
+    ʿilla applies only in ʿarūḍ and ḍarb. *)
+
+(** ** Foot Position Type *)
+
+Inductive foot_position : Type :=
+  | Hashw     (* interior foot *)
+  | Arud      (* last foot of first hemistich *)
+  | Darb.     (* last foot of second hemistich *)
+
+(** ** Decidable Equality for Foot Position *)
+
+Definition foot_position_eq_dec (p1 p2 : foot_position)
+  : {p1 = p2} + {p1 <> p2}.
+Proof.
+  destruct p1, p2; try (left; reflexivity); right; discriminate.
+Defined.
+
+(** ** Position Assignment *)
+
+(** Given a list of feet (a hemistich), assign positions:
+    all but the last are Hashw, the last is the given terminal position. *)
+
+Fixpoint assign_positions_aux (fs : list foot) (terminal : foot_position)
+  : list (foot * foot_position) :=
+  match fs with
+  | [] => []
+  | [f] => [(f, terminal)]
+  | f :: rest => (f, Hashw) :: assign_positions_aux rest terminal
+  end.
+
+Definition assign_sadr_positions (m : meter) : list (foot * foot_position) :=
+  assign_positions_aux (meter_feet m) Arud.
+
+Definition assign_ajuz_positions (m : meter) : list (foot * foot_position) :=
+  assign_positions_aux (meter_feet m) Darb.
+
+(** ** Variation Scope *)
+
+(** Zihāf is permitted only at Hashw positions. *)
+Definition zihaf_permitted (pos : foot_position) : bool :=
+  match pos with
+  | Hashw => true
+  | _ => false
+  end.
+
+(** ʿIlla is permitted only at ʿArūḍ and Ḍarb positions. *)
+Definition ʿilla_permitted (pos : foot_position) : bool :=
+  match pos with
+  | Arud => true
+  | Darb => true
+  | Hashw => false
+  end.
+
+(** ** Position Assignment Witnesses *)
+
+(** Witness: Tawil ṣadr = [Faulun:Hashw; Mafailun:Hashw; Faulun:Hashw; Mafailun:ʿArūḍ] *)
+Example tawil_sadr_positions :
+  assign_sadr_positions Tawil =
+    [(Faulun, Hashw); (Mafailun, Hashw); (Faulun, Hashw); (Mafailun, Arud)].
+Proof. reflexivity. Qed.
+
+(** Example: Hazaj ṣadr = [Mafailun:Hashw; Mafailun:ʿArūḍ] *)
+Example hazaj_sadr_positions :
+  assign_sadr_positions Hazaj =
+    [(Mafailun, Hashw); (Mafailun, Arud)].
+Proof. reflexivity. Qed.
+
+(** Counterexample: Kamil ʿajuz last foot is Ḍarb, not ʿArūḍ *)
+Example kamil_ajuz_positions :
+  assign_ajuz_positions Kamil =
+    [(Mutafailun, Hashw); (Mutafailun, Hashw); (Mutafailun, Darb)].
+Proof. reflexivity. Qed.
+
+(** ** Scope Verification *)
+
+(** Witness: zihāf permitted at Hashw *)
+Example zihaf_scope_witness : zihaf_permitted Hashw = true.
+Proof. reflexivity. Qed.
+
+(** Example: zihāf NOT permitted at ʿArūḍ *)
+Example zihaf_scope_example : zihaf_permitted Arud = false.
+Proof. reflexivity. Qed.
+
+(** Counterexample: ʿilla NOT permitted at Hashw *)
+Example ʿilla_scope_counterexample : ʿilla_permitted Hashw = false.
+Proof. reflexivity. Qed.
+
+(** Witness: ʿilla permitted at Ḍarb *)
+Example ʿilla_scope_witness : ʿilla_permitted Darb = true.
+Proof. reflexivity. Qed.
+
+(** Example: ʿilla permitted at ʿArūḍ *)
+Example ʿilla_scope_example : ʿilla_permitted Arud = true.
+Proof. reflexivity. Qed.
+
+(** ** Mutual Exclusion of Scope *)
+
+Lemma zihaf_ʿilla_exclusive : forall pos,
+  zihaf_permitted pos = true -> ʿilla_permitted pos = false.
+Proof.
+  intros pos H. destruct pos; simpl in *; try discriminate; reflexivity.
+Qed.
+
+Lemma ʿilla_zihaf_exclusive : forall pos,
+  ʿilla_permitted pos = true -> zihaf_permitted pos = false.
+Proof.
+  intros pos H. destruct pos; simpl in *; try discriminate; reflexivity.
+Qed.
+
+(** Witness: Hashw is zihāf-only *)
+Example scope_exclusive_witness :
+  zihaf_permitted Hashw = true /\ ʿilla_permitted Hashw = false.
+Proof. split; reflexivity. Qed.
+
+(** Example: Darb is ʿilla-only *)
+Example scope_exclusive_example :
+  ʿilla_permitted Darb = true /\ zihaf_permitted Darb = false.
+Proof. split; reflexivity. Qed.
+
+(** Counterexample: no position permits both *)
+Example scope_exclusive_counterexample : forall pos,
+  ~ (zihaf_permitted pos = true /\ ʿilla_permitted pos = true).
+Proof.
+  intros pos [H1 H2]. destruct pos; simpl in *; discriminate.
+Qed.
+
+(** End of Section 6b: Foot Positions and Variation Scope *)
+
 (** * Section 7: Scansion *)
 
 (** Scansion is the process of analyzing a verse to determine its metrical pattern.

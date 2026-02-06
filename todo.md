@@ -8,10 +8,10 @@
 6. ~~Define an applicability predicate per variation per foot — which zihāf may legally apply to which tafʿīla~~ DONE
 7. ~~Prove that each variation either preserves syllable count or reduces it by a stated amount~~ DONE
 8. ~~Prove that no variation can transform one canonical foot into another canonical foot~~ DONE (with documented ʿaṣb/mufāʿalatun exception)
-9. Define a canonical decomposition criterion for foot blocks (e.g., maximal-watad-first or conventional boundary placement)
-10. Prove uniqueness of foot block decomposition under that criterion
-11. Formalize the positional foot roles: ḥashw (interior feet), ʿarūḍ (last foot of first hemistich), ḍarb (last foot of second hemistich)
-12. Encode the traditional rule that zihāf applies only in ḥashw, ʿilla applies only in ʿarūḍ/ḍarb
+9. ~~Define a canonical decomposition criterion for foot blocks (e.g., maximal-watad-first or conventional boundary placement)~~ DONE
+10. ~~Prove uniqueness of foot block decomposition under that criterion~~ DONE
+11. ~~Formalize the positional foot roles: ḥashw (interior feet), ʿarūḍ (last foot of first hemistich), ḍarb (last foot of second hemistich)~~ DONE
+12. ~~Encode the traditional rule that zihāf applies only in ḥashw, ʿilla applies only in ʿarūḍ/ḍarb~~ DONE
 13. Define cyclic permutation as a proper algebraic operation with identity and composition laws
 14. Prove rotation forms a group action on patterns (identity, associativity, inverse)
 15. Prove circle closure: rotating the base pattern of a circle by all valid offsets yields exactly that circle's foot set
