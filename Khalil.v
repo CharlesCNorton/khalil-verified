@@ -1068,6 +1068,75 @@ Example foot_blocks_unique_counterexample :
   [BlkSababKhafif; BlkWatadMafruq; BlkSababKhafif] <> mustafilun_blocks.
 Proof. discriminate. Qed.
 
+(** ** Canonical Decomposition *)
+
+(** Khalil's convention: the canonical decomposition of each foot is the
+    one given by foot_blocks. It is "watad-first where possible" — the
+    watad appears at the earliest position consistent with the pattern.
+    We define block-list boolean equality and use it to check canonicity. *)
+
+Fixpoint block_list_eqb (l1 l2 : list block) : bool :=
+  match l1, l2 with
+  | [], [] => true
+  | b1 :: r1, b2 :: r2 =>
+      match block_eq_dec b1 b2 with
+      | left _ => block_list_eqb r1 r2
+      | right _ => false
+      end
+  | _, _ => false
+  end.
+
+Lemma block_list_eqb_eq : forall l1 l2,
+  block_list_eqb l1 l2 = true <-> l1 = l2.
+Proof.
+  induction l1 as [|b1 r1 IH]; destruct l2 as [|b2 r2]; simpl.
+  - split; reflexivity.
+  - split; discriminate.
+  - split; discriminate.
+  - destruct (block_eq_dec b1 b2) as [->|Hneq].
+    + rewrite IH. split.
+      * intros H. rewrite H. reflexivity.
+      * intros H. injection H as H2. exact H2.
+    + split.
+      * discriminate.
+      * intros H. injection H as H1. contradiction.
+Qed.
+
+Definition is_canonical_decomposition (f : foot) (bs : list block) : bool :=
+  block_list_eqb bs (foot_blocks f).
+
+(** The canonical decomposition is always canonical. *)
+Lemma canonical_is_canonical : forall f,
+  is_canonical_decomposition f (foot_blocks f) = true.
+Proof.
+  intros f. unfold is_canonical_decomposition.
+  apply block_list_eqb_eq. reflexivity.
+Qed.
+
+(** The canonical decomposition is unique: it equals foot_blocks. *)
+Lemma canonical_decomposition_unique : forall f bs,
+  is_canonical_decomposition f bs = true -> bs = foot_blocks f.
+Proof.
+  intros f bs H. unfold is_canonical_decomposition in H.
+  apply block_list_eqb_eq. exact H.
+Qed.
+
+(** Witness: faulun canonical decomposition *)
+Example canonical_witness :
+  is_canonical_decomposition Faulun faulun_blocks = true.
+Proof. reflexivity. Qed.
+
+(** Example: mustafilun canonical decomposition *)
+Example canonical_example :
+  is_canonical_decomposition Mustafilun mustafilun_blocks = true.
+Proof. reflexivity. Qed.
+
+(** Counterexample: alternative mustafilun decomposition is not canonical *)
+Example canonical_counterexample :
+  is_canonical_decomposition Mustafilun
+    [BlkSababKhafif; BlkWatadMafruq; BlkSababKhafif] = false.
+Proof. reflexivity. Qed.
+
 (** ** Foot Classification by Syllable Count *)
 
 Definition foot_length (f : foot) : nat :=
