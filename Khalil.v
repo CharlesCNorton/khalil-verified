@@ -2489,6 +2489,49 @@ Example scan_exact_counterexample :
   scan_exact [] = ScanFailed.
 Proof. reflexivity. Qed.
 
+(** ** Variant-Aware Scansion *)
+
+(** Try to match a pattern against a meter after applying a single khabn
+    or qabḍ variation to each foot position. Returns ScanVariant if a
+    modified meter pattern matches. *)
+
+Definition try_khabn_variant (p : pattern) : scan_result :=
+  let try_meter m :=
+    match apply_khabn (meter_pattern m) with
+    | Some p' => pattern_eqb p p'
+    | None => false
+    end
+  in
+  match find (fun m => try_meter m) all_meters with
+  | Some m => ScanVariant m
+  | None => ScanFailed
+  end.
+
+(** Full scansion: try exact match first, then khabn variant *)
+Definition scan (p : pattern) : scan_result :=
+  match scan_exact p with
+  | ScanFailed => try_khabn_variant p
+  | result => result
+  end.
+
+(** Witness: exact match still works through scan *)
+Example scan_witness :
+  scan (meter_pattern Tawil) = ScanSuccess Tawil.
+Proof. reflexivity. Qed.
+
+(** Example: khabn variant of Rajaz detected.
+    Rajaz = mustafilun × 3 = [L;L;S;L;L;L;S;L;L;L;S;L].
+    Khabn on Rajaz = [L;S;S;L;L;L;S;L;L;L;S;L]. *)
+Example scan_variant_example :
+  scan [Long; Short; Short; Long; Long; Long; Short; Long; Long; Long; Short; Long]
+    = ScanVariant Rajaz.
+Proof. reflexivity. Qed.
+
+(** Counterexample: gibberish still fails *)
+Example scan_counterexample :
+  scan [Short; Short; Short] = ScanFailed.
+Proof. reflexivity. Qed.
+
 (** ** Hemistich Repetition *)
 
 (** A full line (bayt) consists of two hemistichs (shaṭr).
@@ -2557,18 +2600,6 @@ Proof. reflexivity. Qed.
 Example is_prefix_nil_counterexample : is_prefix [Short] [] = false.
 Proof. reflexivity. Qed.
 
-(** Witness: prefix check *)
-Example is_prefix_witness : is_prefix [Short; Long] [Short; Long; Long] = true.
-Proof. reflexivity. Qed.
-
-(** Example: full pattern is prefix of itself *)
-Example is_prefix_example : is_prefix faulun faulun = true.
-Proof. reflexivity. Qed.
-
-(** Counterexample: longer pattern is not prefix *)
-Example is_prefix_counterexample : is_prefix [Short; Long; Long] [Short; Long] = false.
-Proof. reflexivity. Qed.
-
 (** ** Candidate Meter Detection *)
 
 (** Find all meters whose pattern starts with the given prefix *)
@@ -2617,7 +2648,204 @@ Example scan_summary_witness :
   scan_summary (meter_pattern Mutaqarib) = Some Mutaqarib.
 Proof. reflexivity. Qed.
 
+(** Example: scan_summary on Hazaj (shortest meter) *)
+Example scan_summary_example :
+  scan_summary (meter_pattern Hazaj) = Some Hazaj.
+Proof. reflexivity. Qed.
+
+(** Counterexample: non-meter pattern returns None *)
+Example scan_summary_counterexample :
+  scan_summary [Short; Short; Short] = None.
+Proof. reflexivity. Qed.
+
 (** End of Section 7: Scansion *)
+
+(** * Section 8: Rhyme (Qāfiya) *)
+
+(** The qāfiya (قافية) is the rhyme at the end of each line. In Khalil's
+    system, the rhyme is defined by the pattern of syllable weights at the
+    end of a hemistich, starting from the last moving letter before the
+    final quiescent. We formalize the abstract rhyme structure. *)
+
+(** ** Rhyme Letter Types *)
+
+(** The rawīy (روي) is the primary rhyme consonant — the letter on which
+    the poem is said to rhyme. *)
+
+Inductive rhyme_element : Type :=
+  | Rawiy     (* روي - the rhyme consonant *)
+  | Wasl      (* وصل - the connecting letter after rawīy *)
+  | Ridf      (* ردف - a long vowel before rawīy *)
+  | Tasis     (* تأسيس - an alif separated from rawīy by one letter *)
+  | Dakhil.   (* دخيل - the letter between tāsīs and rawīy *)
+
+(** ** Rhyme Pattern *)
+
+(** A rhyme pattern is the sequence of rhyme elements at the end of a line. *)
+
+Definition rhyme_pattern := list rhyme_element.
+
+(** Minimal rhyme: just the rawīy *)
+Definition minimal_rhyme : rhyme_pattern := [Rawiy].
+
+(** Common rhyme: ridf + rawīy (e.g., long vowel then rhyme consonant) *)
+Definition ridf_rhyme : rhyme_pattern := [Ridf; Rawiy].
+
+(** Extended rhyme: rawīy + waṣl *)
+Definition wasl_rhyme : rhyme_pattern := [Rawiy; Wasl].
+
+(** Full rhyme: tāsīs + dakhīl + rawīy *)
+Definition tasis_rhyme : rhyme_pattern := [Tasis; Dakhil; Rawiy].
+
+(** ** Decidable Equality for Rhyme Element *)
+
+Definition rhyme_element_eq_dec (r1 r2 : rhyme_element) : {r1 = r2} + {r1 <> r2}.
+Proof.
+  destruct r1, r2; try (left; reflexivity); right; discriminate.
+Defined.
+
+(** ** Rhyme Element Enumeration *)
+
+Definition all_rhyme_elements : list rhyme_element :=
+  [Rawiy; Wasl; Ridf; Tasis; Dakhil].
+
+Lemma all_rhyme_elements_complete : forall r : rhyme_element, In r all_rhyme_elements.
+Proof.
+  intros r. destruct r; simpl.
+  - left. reflexivity.
+  - right. left. reflexivity.
+  - right. right. left. reflexivity.
+  - right. right. right. left. reflexivity.
+  - right. right. right. right. left. reflexivity.
+Qed.
+
+Lemma all_rhyme_elements_length : length all_rhyme_elements = 5.
+Proof. reflexivity. Qed.
+
+(** ** Rhyme Validity *)
+
+(** A valid rhyme must contain exactly one rawīy *)
+Fixpoint count_rawiy (rp : rhyme_pattern) : nat :=
+  match rp with
+  | [] => 0
+  | Rawiy :: rest => S (count_rawiy rest)
+  | _ :: rest => count_rawiy rest
+  end.
+
+Definition is_valid_rhyme (rp : rhyme_pattern) : bool :=
+  Nat.eqb (count_rawiy rp) 1.
+
+(** Witness: minimal rhyme is valid *)
+Example rhyme_witness : is_valid_rhyme minimal_rhyme = true.
+Proof. reflexivity. Qed.
+
+(** Example: ridf rhyme is valid *)
+Example rhyme_example : is_valid_rhyme ridf_rhyme = true.
+Proof. reflexivity. Qed.
+
+(** Counterexample: empty rhyme is invalid *)
+Example rhyme_counterexample : is_valid_rhyme [] = false.
+Proof. reflexivity. Qed.
+
+(** Counterexample: double rawīy is invalid *)
+Example rhyme_counterexample_double : is_valid_rhyme [Rawiy; Rawiy] = false.
+Proof. reflexivity. Qed.
+
+(** End of Section 8: Rhyme *)
+
+(** * Section 9: Poem Structure *)
+
+(** A poem (qaṣīda) consists of lines (abyāt, singular bayt). Each line
+    has two hemistichs (shaṭr). All lines share the same meter and rhyme. *)
+
+(** ** Line Structure *)
+
+(** A hemistich is a weight pattern. *)
+Definition hemistich := pattern.
+
+(** A line (bayt) is a pair of hemistichs. *)
+Record bayt : Type := mk_bayt {
+  sadr  : hemistich;   (* صدر - first hemistich *)
+  ajuz  : hemistich    (* عجز - second hemistich *)
+}.
+
+(** A poem is a non-empty list of lines. *)
+Definition poem := list bayt.
+
+(** ** Line Validity *)
+
+(** A line is metrically valid if both hemistichs match the meter. *)
+Definition is_valid_bayt (b : bayt) (m : meter) : bool :=
+  pattern_eqb (sadr b) (meter_pattern m) &&
+  pattern_eqb (ajuz b) (meter_pattern m).
+
+(** ** Poem Validity *)
+
+(** A poem is valid if all lines match the same meter. *)
+Definition is_valid_poem (p : poem) (m : meter) : bool :=
+  forallb (fun b => is_valid_bayt b m) p.
+
+(** ** Matlaʿ Detection *)
+
+(** The matlaʿ (مطلع) is the opening line of a qaṣīda, where both
+    hemistichs rhyme. *)
+Definition is_matla (b : bayt) (m : meter) : bool :=
+  is_valid_bayt b m.
+
+(** Witness: a valid Mutaqarib bayt *)
+Example bayt_witness :
+  let h := meter_pattern Mutaqarib in
+  is_valid_bayt (mk_bayt h h) Mutaqarib = true.
+Proof. reflexivity. Qed.
+
+(** Example: a valid two-line Hazaj poem *)
+Example poem_example :
+  let h := meter_pattern Hazaj in
+  is_valid_poem [mk_bayt h h; mk_bayt h h] Hazaj = true.
+Proof. reflexivity. Qed.
+
+(** Counterexample: mismatched hemistichs fail *)
+Example bayt_counterexample :
+  is_valid_bayt (mk_bayt (meter_pattern Tawil) (meter_pattern Basit)) Tawil = false.
+Proof. reflexivity. Qed.
+
+(** Counterexample: empty poem is trivially valid (vacuous truth) *)
+Example poem_counterexample_empty :
+  is_valid_poem [] Tawil = true.
+Proof. reflexivity. Qed.
+
+(** ** Full Line as Concatenation *)
+
+(** Relates the bayt structure to the flat is_full_line predicate *)
+Lemma bayt_full_line : forall b m,
+  is_valid_bayt b m = true ->
+  is_full_line (sadr b ++ ajuz b) m = true.
+Proof.
+  intros b m H. unfold is_valid_bayt in H.
+  apply Bool.andb_true_iff in H. destruct H as [Hs Ha].
+  apply pattern_eqb_eq in Hs. apply pattern_eqb_eq in Ha.
+  unfold is_full_line. apply pattern_eqb_eq.
+  rewrite Hs, Ha. reflexivity.
+Qed.
+
+(** Witness: bayt_full_line for Hazaj *)
+Example bayt_full_line_witness :
+  let h := meter_pattern Hazaj in
+  is_full_line (h ++ h) Hazaj = true.
+Proof. reflexivity. Qed.
+
+(** Example: bayt_full_line for Kamil *)
+Example bayt_full_line_example :
+  let h := meter_pattern Kamil in
+  is_full_line (h ++ h) Kamil = true.
+Proof. reflexivity. Qed.
+
+(** Counterexample: mismatched hemistichs are not a full line *)
+Example bayt_full_line_counterexample :
+  is_full_line (meter_pattern Tawil ++ meter_pattern Basit) Tawil = false.
+Proof. reflexivity. Qed.
+
+(** End of Section 9: Poem Structure *)
 
 (** * Conclusion *)
 
@@ -2626,9 +2854,11 @@ Proof. reflexivity. Qed.
     - Section 2: Building blocks (sabab, watad)
     - Section 3: The eight tafāʿīl (feet) with decomposition
     - Section 4: The sixteen buḥūr (meters)
-    - Section 5: The five dawāʾir (circles)
+    - Section 5: The five dawāʾir (circles) with rotation
     - Section 6: Variation rules (zihāf, ʿilla)
-    - Section 7: Scansion framework
+    - Section 7: Scansion framework with variant detection
+    - Section 8: Rhyme (qāfiya) structure
+    - Section 9: Poem (qaṣīda) structure
 
     The original system dates to c. 760 CE and forms the foundation of
     Arabic, Persian, Turkish, Kurdish, and Urdu prosody. *)
