@@ -729,4 +729,283 @@ Example foot_pattern_injective_counterexample :
   foot_pattern Faulun <> foot_pattern Failun.
 Proof. discriminate. Qed.
 
+(** ** Foot Decomposition into Building Blocks *)
+
+(** Khalil's system analyzes each foot as combinations of sabab and watad.
+    To complete this decomposition, we need a primitive for a single long
+    syllable. *)
+
+Definition lone_long : pattern := [Long].
+
+(** Extended block type for decomposition *)
+Inductive block : Type :=
+  | BlkSababKhafif    (* [Short] *)
+  | BlkSababThaqil    (* [Short; Short] *)
+  | BlkWatadMajmu     (* [Short; Long] *)
+  | BlkWatadMafruq    (* [Long; Short] *)
+  | BlkLong.          (* [Long] *)
+
+Definition block_pattern (b : block) : pattern :=
+  match b with
+  | BlkSababKhafif => sabab_khafif
+  | BlkSababThaqil => sabab_thaqil
+  | BlkWatadMajmu => watad_majmu
+  | BlkWatadMafruq => watad_mafruq
+  | BlkLong => lone_long
+  end.
+
+(** Concatenate block patterns *)
+Definition blocks_to_pattern (bs : list block) : pattern :=
+  concat (map block_pattern bs).
+
+(** Foot decompositions into building blocks *)
+
+(** faʿūlun (u - -) = watad majmūʿ + long *)
+Definition faulun_blocks : list block := [BlkWatadMajmu; BlkLong].
+
+(** fāʿilun (- u -) = watad mafrūq + long *)
+Definition failun_blocks : list block := [BlkWatadMafruq; BlkLong].
+
+(** mafāʿīlun (u - - -) = watad majmūʿ + long + long *)
+Definition mafailun_blocks : list block := [BlkWatadMajmu; BlkLong; BlkLong].
+
+(** mustafʿilun (- - u -) = long + long + watad majmūʿ *)
+Definition mustafilun_blocks : list block := [BlkLong; BlkLong; BlkWatadMajmu].
+
+(** fāʿilātun (- u - -) = watad mafrūq + long + long *)
+Definition failatun_blocks : list block := [BlkWatadMafruq; BlkLong; BlkLong].
+
+(** mafʿūlātu (- - - u) = long + long + watad mafrūq *)
+Definition mafulatu_blocks : list block := [BlkLong; BlkLong; BlkWatadMafruq].
+
+(** mutafāʿilun (u u - u -) = sabab thaqīl + watad mafrūq + long *)
+Definition mutafailun_blocks : list block := [BlkSababThaqil; BlkWatadMafruq; BlkLong].
+
+(** mufāʿalatun (u - u u -) = watad majmūʿ + sabab thaqīl + long *)
+Definition mufaalatun_blocks : list block := [BlkWatadMajmu; BlkSababThaqil; BlkLong].
+
+(** Map foot to its block decomposition *)
+Definition foot_blocks (f : foot) : list block :=
+  match f with
+  | Faulun => faulun_blocks
+  | Failun => failun_blocks
+  | Mafailun => mafailun_blocks
+  | Mustafilun => mustafilun_blocks
+  | Failatun => failatun_blocks
+  | Mafulatu => mafulatu_blocks
+  | Mutafailun => mutafailun_blocks
+  | Mufaalatun => mufaalatun_blocks
+  end.
+
+(** Decomposition correctness: blocks reconstruct the pattern *)
+Lemma foot_blocks_correct : forall f : foot,
+  blocks_to_pattern (foot_blocks f) = foot_pattern f.
+Proof.
+  intros f. destruct f; reflexivity.
+Qed.
+
+(** Witness: faulun decomposes correctly *)
+Example foot_blocks_witness :
+  blocks_to_pattern faulun_blocks = faulun.
+Proof. reflexivity. Qed.
+
+(** Example: pentasyllabic mutafailun decomposes correctly *)
+Example foot_blocks_example :
+  blocks_to_pattern mutafailun_blocks = mutafailun.
+Proof. reflexivity. Qed.
+
+(** Counterexample: wrong block order gives wrong pattern *)
+Example foot_blocks_counterexample :
+  blocks_to_pattern [BlkLong; BlkWatadMajmu] <> faulun.
+Proof. discriminate. Qed.
+
+(** ** Foot Classification by Syllable Count *)
+
+Definition foot_length (f : foot) : nat :=
+  length (foot_pattern f).
+
+(** Trisyllabic feet (3 syllables) *)
+Definition is_trisyllabic (f : foot) : bool :=
+  Nat.eqb (foot_length f) 3.
+
+(** Quadrisyllabic feet (4 syllables) *)
+Definition is_quadrisyllabic (f : foot) : bool :=
+  Nat.eqb (foot_length f) 4.
+
+(** Pentasyllabic feet (5 syllables) *)
+Definition is_pentasyllabic (f : foot) : bool :=
+  Nat.eqb (foot_length f) 5.
+
+(** Foot length lemmas *)
+Lemma faulun_length : foot_length Faulun = 3.
+Proof. reflexivity. Qed.
+
+Lemma failun_length : foot_length Failun = 3.
+Proof. reflexivity. Qed.
+
+Lemma mafailun_length : foot_length Mafailun = 4.
+Proof. reflexivity. Qed.
+
+Lemma mustafilun_length : foot_length Mustafilun = 4.
+Proof. reflexivity. Qed.
+
+Lemma failatun_length : foot_length Failatun = 4.
+Proof. reflexivity. Qed.
+
+Lemma mafulatu_length : foot_length Mafulatu = 4.
+Proof. reflexivity. Qed.
+
+Lemma mutafailun_length : foot_length Mutafailun = 5.
+Proof. reflexivity. Qed.
+
+Lemma mufaalatun_length : foot_length Mufaalatun = 5.
+Proof. reflexivity. Qed.
+
+(** Classification lemmas *)
+Lemma trisyllabic_feet : forall f,
+  is_trisyllabic f = true <-> f = Faulun \/ f = Failun.
+Proof.
+  intros f. unfold is_trisyllabic, foot_length. split.
+  - destruct f; simpl; intros H; try discriminate.
+    + left. reflexivity.
+    + right. reflexivity.
+  - intros [H | H]; rewrite H; reflexivity.
+Qed.
+
+Lemma quadrisyllabic_feet : forall f,
+  is_quadrisyllabic f = true <-> f = Mafailun \/ f = Mustafilun \/ f = Failatun \/ f = Mafulatu.
+Proof.
+  intros f. unfold is_quadrisyllabic, foot_length. split.
+  - destruct f; simpl; intros H; try discriminate.
+    + left. reflexivity.
+    + right. left. reflexivity.
+    + right. right. left. reflexivity.
+    + right. right. right. reflexivity.
+  - intros [H | [H | [H | H]]]; rewrite H; reflexivity.
+Qed.
+
+Lemma pentasyllabic_feet : forall f,
+  is_pentasyllabic f = true <-> f = Mutafailun \/ f = Mufaalatun.
+Proof.
+  intros f. unfold is_pentasyllabic, foot_length. split.
+  - destruct f; simpl; intros H; try discriminate.
+    + left. reflexivity.
+    + right. reflexivity.
+  - intros [H | H]; rewrite H; reflexivity.
+Qed.
+
+(** Classification counts *)
+Lemma trisyllabic_count : length (filter is_trisyllabic all_feet) = 2.
+Proof. reflexivity. Qed.
+
+Lemma quadrisyllabic_count : length (filter is_quadrisyllabic all_feet) = 4.
+Proof. reflexivity. Qed.
+
+Lemma pentasyllabic_count : length (filter is_pentasyllabic all_feet) = 2.
+Proof. reflexivity. Qed.
+
+(** Witness: Faulun is trisyllabic *)
+Example trisyllabic_witness : is_trisyllabic Faulun = true.
+Proof. reflexivity. Qed.
+
+(** Example: Mafailun is quadrisyllabic *)
+Example quadrisyllabic_example : is_quadrisyllabic Mafailun = true.
+Proof. reflexivity. Qed.
+
+(** Counterexample: Mutafailun is not quadrisyllabic *)
+Example quadrisyllabic_counterexample : is_quadrisyllabic Mutafailun = false.
+Proof. reflexivity. Qed.
+
+(** ** Pattern to Foot Function *)
+
+(** Computable inverse of foot_pattern *)
+Definition pattern_to_foot (p : pattern) : option foot :=
+  if pattern_eqb p faulun then Some Faulun
+  else if pattern_eqb p failun then Some Failun
+  else if pattern_eqb p mafailun then Some Mafailun
+  else if pattern_eqb p mustafilun then Some Mustafilun
+  else if pattern_eqb p failatun then Some Failatun
+  else if pattern_eqb p mafulatu then Some Mafulatu
+  else if pattern_eqb p mutafailun then Some Mutafailun
+  else if pattern_eqb p mufaalatun then Some Mufaalatun
+  else None.
+
+(** Correctness: pattern_to_foot is left inverse of foot_pattern *)
+Lemma pattern_to_foot_correct : forall f : foot,
+  pattern_to_foot (foot_pattern f) = Some f.
+Proof.
+  intros f. destruct f; reflexivity.
+Qed.
+
+(** Correctness: pattern_to_foot returns the unique foot *)
+Lemma pattern_to_foot_unique : forall p f,
+  pattern_to_foot p = Some f -> foot_pattern f = p.
+Proof.
+  intros p f H.
+  unfold pattern_to_foot in H.
+  destruct (pattern_eqb p faulun) eqn:E1.
+  { injection H as Hf. subst f. simpl. symmetry. apply pattern_eqb_eq. exact E1. }
+  destruct (pattern_eqb p failun) eqn:E2.
+  { injection H as Hf. subst f. simpl. symmetry. apply pattern_eqb_eq. exact E2. }
+  destruct (pattern_eqb p mafailun) eqn:E3.
+  { injection H as Hf. subst f. simpl. symmetry. apply pattern_eqb_eq. exact E3. }
+  destruct (pattern_eqb p mustafilun) eqn:E4.
+  { injection H as Hf. subst f. simpl. symmetry. apply pattern_eqb_eq. exact E4. }
+  destruct (pattern_eqb p failatun) eqn:E5.
+  { injection H as Hf. subst f. simpl. symmetry. apply pattern_eqb_eq. exact E5. }
+  destruct (pattern_eqb p mafulatu) eqn:E6.
+  { injection H as Hf. subst f. simpl. symmetry. apply pattern_eqb_eq. exact E6. }
+  destruct (pattern_eqb p mutafailun) eqn:E7.
+  { injection H as Hf. subst f. simpl. symmetry. apply pattern_eqb_eq. exact E7. }
+  destruct (pattern_eqb p mufaalatun) eqn:E8.
+  { injection H as Hf. subst f. simpl. symmetry. apply pattern_eqb_eq. exact E8. }
+  discriminate.
+Qed.
+
+(** None for non-foot patterns *)
+Lemma pattern_to_foot_none : forall p,
+  pattern_to_foot p = None <-> (forall f, foot_pattern f <> p).
+Proof.
+  intros p. split.
+  - intros H f Hcontra.
+    rewrite <- Hcontra in H. rewrite pattern_to_foot_correct in H. discriminate.
+  - intros H. unfold pattern_to_foot.
+    destruct (pattern_eqb p faulun) eqn:E1.
+    { apply pattern_eqb_eq in E1. exfalso. apply (H Faulun). symmetry. exact E1. }
+    destruct (pattern_eqb p failun) eqn:E2.
+    { apply pattern_eqb_eq in E2. exfalso. apply (H Failun). symmetry. exact E2. }
+    destruct (pattern_eqb p mafailun) eqn:E3.
+    { apply pattern_eqb_eq in E3. exfalso. apply (H Mafailun). symmetry. exact E3. }
+    destruct (pattern_eqb p mustafilun) eqn:E4.
+    { apply pattern_eqb_eq in E4. exfalso. apply (H Mustafilun). symmetry. exact E4. }
+    destruct (pattern_eqb p failatun) eqn:E5.
+    { apply pattern_eqb_eq in E5. exfalso. apply (H Failatun). symmetry. exact E5. }
+    destruct (pattern_eqb p mafulatu) eqn:E6.
+    { apply pattern_eqb_eq in E6. exfalso. apply (H Mafulatu). symmetry. exact E6. }
+    destruct (pattern_eqb p mutafailun) eqn:E7.
+    { apply pattern_eqb_eq in E7. exfalso. apply (H Mutafailun). symmetry. exact E7. }
+    destruct (pattern_eqb p mufaalatun) eqn:E8.
+    { apply pattern_eqb_eq in E8. exfalso. apply (H Mufaalatun). symmetry. exact E8. }
+    reflexivity.
+Qed.
+
+(** Witness: pattern_to_foot recovers Faulun *)
+Example pattern_to_foot_witness : pattern_to_foot faulun = Some Faulun.
+Proof. reflexivity. Qed.
+
+(** Example: pattern_to_foot recovers Mufaalatun (last in chain) *)
+Example pattern_to_foot_example : pattern_to_foot mufaalatun = Some Mufaalatun.
+Proof. reflexivity. Qed.
+
+(** Counterexample: non-foot patterns return None *)
+Example pattern_to_foot_counterexample_empty : pattern_to_foot [] = None.
+Proof. reflexivity. Qed.
+
+Example pattern_to_foot_counterexample_sabab : pattern_to_foot sabab_khafif = None.
+Proof. reflexivity. Qed.
+
+Example pattern_to_foot_counterexample_arbitrary :
+  pattern_to_foot [Long; Long; Long; Long; Long] = None.
+Proof. reflexivity. Qed.
+
 (** End of Section 3: The Eight Feet *)
