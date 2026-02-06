@@ -2793,6 +2793,248 @@ Example variation_applicability_counterexample :
   apply_waqṣ mustafilun = None.
 Proof. reflexivity. Qed.
 
+(** ** Zihāf-Foot Applicability Predicates *)
+
+(** A computable predicate: does the given simple zihāf apply to the
+    given foot? This is determined by whether the apply function
+    succeeds (returns Some). *)
+
+Definition zihaf_applies_to (z : zihaf) (f : foot) : bool :=
+  match (match z with
+         | Khabn => apply_khabn
+         | Tayy => apply_tayy
+         | Qabḍ => apply_qabḍ
+         | Kaff => apply_kaff
+         | Waqṣ => apply_waqṣ
+         | ʿAṣb => apply_ʿaṣb
+         end) (foot_pattern f) with
+  | Some _ => true
+  | None => false
+  end.
+
+(** Applicability table: which simple zihāf apply to which feet. *)
+
+(** Khabn applies to feet whose 2nd letter is sākin. *)
+Example khabn_applicability :
+  filter (zihaf_applies_to Khabn) all_feet =
+    [Failun; Mustafilun; Failatun; Mafulatu].
+Proof. reflexivity. Qed.
+
+(** Tayy applies to feet whose 4th letter is sākin. *)
+Example tayy_applicability :
+  filter (zihaf_applies_to Tayy) all_feet =
+    [Mustafilun; Mafulatu; Mutafailun].
+Proof. reflexivity. Qed.
+
+(** Qabḍ applies to feet whose 5th letter is sākin. *)
+Example qabḍ_applicability :
+  filter (zihaf_applies_to Qabḍ) all_feet =
+    [Faulun; Failun; Mafailun; Failatun].
+Proof. reflexivity. Qed.
+
+(** Kaff applies to feet whose 7th letter is sākin. *)
+Example kaff_applicability :
+  filter (zihaf_applies_to Kaff) all_feet =
+    [Mafailun; Mustafilun; Failatun; Mutafailun; Mufaalatun].
+Proof. reflexivity. Qed.
+
+(** Waqṣ applies to feet whose 2nd letter is mutaḥarrik. *)
+Example waqṣ_applicability :
+  filter (zihaf_applies_to Waqṣ) all_feet =
+    [Faulun; Mafailun; Mutafailun; Mufaalatun].
+Proof. reflexivity. Qed.
+
+(** ʿAṣb applies to feet whose 5th letter is mutaḥarrik. *)
+Example ʿaṣb_applicability :
+  filter (zihaf_applies_to ʿAṣb) all_feet =
+    [Mustafilun; Mafulatu; Mutafailun; Mufaalatun].
+Proof. reflexivity. Qed.
+
+(** Witness: every simple zihāf applies to at least one foot. *)
+Lemma every_zihaf_has_target : forall z : zihaf,
+  exists f, zihaf_applies_to z f = true.
+Proof.
+  intros z. destruct z.
+  - exists Mustafilun. reflexivity.
+  - exists Mustafilun. reflexivity.
+  - exists Mafailun. reflexivity.
+  - exists Mafailun. reflexivity.
+  - exists Mutafailun. reflexivity.
+  - exists Mufaalatun. reflexivity.
+Qed.
+
+(** Counterexample: no zihāf applies to all 8 feet. *)
+Example no_universal_zihaf : forall z : zihaf,
+  length (filter (zihaf_applies_to z) all_feet) < 8.
+Proof. intros z. destruct z; simpl; repeat constructor. Qed.
+
+(** ** Variation Syllable Count Properties *)
+
+(** *** ʿIlla syllable count properties (general) *)
+
+Require Import Lia.
+
+(** One-step unfolding lemmas for recursive ʿilla functions. *)
+
+Lemma apply_qaṣr_cons2 : forall w w' p'',
+  apply_qaṣr (w :: w' :: p'') =
+  match apply_qaṣr (w' :: p'') with
+  | Some rest' => Some (w :: rest')
+  | None => None
+  end.
+Proof. destruct w; reflexivity. Qed.
+
+Lemma apply_tasbīgh_cons2 : forall w w' p'',
+  apply_tasbīgh (w :: w' :: p'') =
+  match apply_tasbīgh (w' :: p'') with
+  | Some rest' => Some (w :: rest')
+  | None => None
+  end.
+Proof. destruct w; reflexivity. Qed.
+
+Lemma apply_ḥadhf_cons2 : forall w w' p'',
+  apply_ḥadhf (w :: w' :: p'') =
+  match apply_ḥadhf (w' :: p'') with
+  | Some rest' => Some (w :: rest')
+  | None => None
+  end.
+Proof. destruct w; reflexivity. Qed.
+
+Lemma apply_qaṭʿ_cons3 : forall w w' w'' p''',
+  apply_qaṭʿ (w :: w' :: w'' :: p''') =
+  match apply_qaṭʿ (w' :: w'' :: p''') with
+  | Some rest' => Some (w :: rest')
+  | None => None
+  end.
+Proof. destruct w; reflexivity. Qed.
+
+(** Qaṣr preserves syllable count. *)
+Lemma qaṣr_preserves_count : forall p p',
+  apply_qaṣr p = Some p' -> length p' = length p.
+Proof.
+  induction p as [|w p' IH]; intros q H.
+  - discriminate.
+  - destruct p' as [|w' p''].
+    + simpl in H. destruct w; inversion H; reflexivity.
+    + rewrite apply_qaṣr_cons2 in H.
+      destruct (apply_qaṣr (w' :: p'')) as [r|] eqn:E; try discriminate.
+      inversion H; subst. simpl. f_equal. exact (IH r eq_refl).
+Qed.
+
+(** Tasbīgh preserves syllable count. *)
+Lemma tasbīgh_preserves_count : forall p p',
+  apply_tasbīgh p = Some p' -> length p' = length p.
+Proof.
+  induction p as [|w p' IH]; intros q H.
+  - discriminate.
+  - destruct p' as [|w' p''].
+    + simpl in H. destruct w; inversion H; reflexivity.
+    + rewrite apply_tasbīgh_cons2 in H.
+      destruct (apply_tasbīgh (w' :: p'')) as [r|] eqn:E; try discriminate.
+      inversion H; subst. simpl. f_equal. exact (IH r eq_refl).
+Qed.
+
+(** Ḥadhf reduces syllable count by 1. *)
+Lemma ḥadhf_reduces_by_one : forall p p',
+  apply_ḥadhf p = Some p' -> S (length p') = length p.
+Proof.
+  induction p as [|w p' IH]; intros q H.
+  - discriminate.
+  - destruct p' as [|w' p''].
+    + simpl in H. destruct w; inversion H; subst; reflexivity.
+    + rewrite apply_ḥadhf_cons2 in H.
+      destruct (apply_ḥadhf (w' :: p'')) as [r|] eqn:E; try discriminate.
+      inversion H; subst. simpl. f_equal. exact (IH r eq_refl).
+Qed.
+
+(** Qaṭʿ reduces syllable count by 1. *)
+Lemma qaṭʿ_reduces_by_one : forall p p',
+  apply_qaṭʿ p = Some p' -> S (length p') = length p.
+Proof.
+  induction p as [|w p' IH]; intros q H.
+  - discriminate.
+  - destruct p' as [|w' p''].
+    + discriminate.
+    + destruct p'' as [|w'' p'''].
+      * simpl in H. destruct w; inversion H; subst; reflexivity.
+      * rewrite apply_qaṭʿ_cons3 in H.
+        destruct (apply_qaṭʿ (w' :: w'' :: p''')) as [r|] eqn:E; try discriminate.
+        inversion H; subst. simpl. f_equal. exact (IH r eq_refl).
+Qed.
+
+(** Batr reduces syllable count by 2. *)
+Lemma batr_reduces_by_two : forall p p',
+  apply_batr p = Some p' -> S (S (length p')) = length p.
+Proof.
+  intros p q H. unfold apply_batr in H.
+  destruct (apply_ḥadhf p) as [p1|] eqn:E1; try discriminate.
+  apply qaṭʿ_reduces_by_one in H.
+  apply ḥadhf_reduces_by_one in E1.
+  lia.
+Qed.
+
+(** *** Zihāf syllable count properties (exhaustive over feet) *)
+
+(** Deleting a sākin letter preserves syllable count on all applicable feet. *)
+Lemma khabn_preserves_count : forall f p,
+  apply_khabn (foot_pattern f) = Some p -> length p = foot_length f.
+Proof.
+  intros f p H. destruct f; simpl in H; try discriminate;
+  injection H as Hp; subst p; reflexivity.
+Qed.
+
+Lemma tayy_preserves_count : forall f p,
+  apply_tayy (foot_pattern f) = Some p -> length p = foot_length f.
+Proof.
+  intros f p H. destruct f; simpl in H; try discriminate;
+  injection H as Hp; subst p; reflexivity.
+Qed.
+
+Lemma qabḍ_preserves_count : forall f p,
+  apply_qabḍ (foot_pattern f) = Some p -> length p = foot_length f.
+Proof.
+  intros f p H. destruct f; simpl in H; try discriminate;
+  injection H as Hp; subst p; reflexivity.
+Qed.
+
+Lemma kaff_preserves_count : forall f p,
+  apply_kaff (foot_pattern f) = Some p -> length p = foot_length f.
+Proof.
+  intros f p H. destruct f; simpl in H; try discriminate;
+  injection H as Hp; subst p; reflexivity.
+Qed.
+
+(** Waqṣ reduces syllable count by 1 on all applicable feet. *)
+Lemma waqṣ_reduces_count : forall f p,
+  apply_waqṣ (foot_pattern f) = Some p -> S (length p) = foot_length f.
+Proof.
+  intros f p H. destruct f; simpl in H; try discriminate;
+  injection H as Hp; subst p; reflexivity.
+Qed.
+
+(** ʿAṣb reduces syllable count by 1 on all applicable feet. *)
+Lemma ʿaṣb_reduces_count : forall f p,
+  apply_ʿaṣb (foot_pattern f) = Some p -> S (length p) = foot_length f.
+Proof.
+  intros f p H. destruct f; simpl in H; try discriminate;
+  injection H as Hp; subst p; reflexivity.
+Qed.
+
+(** Witness: khabn on mustafilun preserves 4-syllable count *)
+Example khabn_count_witness :
+  exists p, apply_khabn mustafilun = Some p /\ length p = 4.
+Proof. eexists. split; reflexivity. Qed.
+
+(** Example: waqṣ on mutafailun reduces count from 5 to 4 *)
+Example waqṣ_count_example :
+  exists p, apply_waqṣ mutafailun = Some p /\ length p = 4 /\ foot_length Mutafailun = 5.
+Proof. eexists. repeat split; reflexivity. Qed.
+
+(** Counterexample: ḥadhf on faulun reduces from 3 to 2, not 3 *)
+Example ḥadhf_count_counterexample :
+  exists p, apply_ḥadhf faulun = Some p /\ length p = 2 /\ length p <> 3.
+Proof. eexists. repeat split; try reflexivity. discriminate. Qed.
+
 (** End of Section 6: Variation Rules *)
 
 (** * Section 7: Scansion *)
