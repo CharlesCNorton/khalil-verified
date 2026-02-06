@@ -497,3 +497,236 @@ Proof.
 Qed.
 
 (** End of Section 2: Building Blocks *)
+
+(** * Section 3: The Eight Feet (Tafāʿīl) *)
+
+(** The tafāʿīl (تفاعيل) are mnemonic words representing the canonical
+    metrical feet. Each encodes a specific weight pattern. Khalil identified
+    eight core feet from which all meters are built. *)
+
+(** ** Foot Definitions *)
+
+(** Trisyllabic feet *)
+Definition faulun : pattern := [Short; Long; Long].        (* faʿūlun: u - - *)
+Definition failun : pattern := [Long; Short; Long].        (* fāʿilun: - u - *)
+
+(** Quadrisyllabic feet *)
+Definition mafailun : pattern := [Short; Long; Long; Long].     (* mafāʿīlun: u - - - *)
+Definition mustafilun : pattern := [Long; Long; Short; Long].   (* mustafʿilun: - - u - *)
+Definition failatun : pattern := [Long; Short; Long; Long].     (* fāʿilātun: - u - - *)
+Definition mafulatu : pattern := [Long; Long; Long; Short].     (* mafʿūlātu: - - - u *)
+
+(** Pentasyllabic feet *)
+Definition mutafailun : pattern := [Short; Short; Long; Short; Long].  (* mutafāʿilun: u u - u - *)
+Definition mufaalatun : pattern := [Short; Long; Short; Short; Long].  (* mufāʿalatun: u - u u - *)
+
+(** ** Foot Type *)
+
+Inductive foot : Type :=
+  | Faulun | Failun
+  | Mafailun | Mustafilun | Failatun | Mafulatu
+  | Mutafailun | Mufaalatun.
+
+(** Map foot to its pattern *)
+Definition foot_pattern (f : foot) : pattern :=
+  match f with
+  | Faulun => faulun
+  | Failun => failun
+  | Mafailun => mafailun
+  | Mustafilun => mustafilun
+  | Failatun => failatun
+  | Mafulatu => mafulatu
+  | Mutafailun => mutafailun
+  | Mufaalatun => mufaalatun
+  end.
+
+(** ** Foot Recognition *)
+
+Definition is_foot (p : pattern) : bool :=
+  pattern_eqb p faulun ||
+  pattern_eqb p failun ||
+  pattern_eqb p mafailun ||
+  pattern_eqb p mustafilun ||
+  pattern_eqb p failatun ||
+  pattern_eqb p mafulatu ||
+  pattern_eqb p mutafailun ||
+  pattern_eqb p mufaalatun.
+
+(** Witness: faulun pattern *)
+Example faulun_witness : faulun = [Short; Long; Long].
+Proof. reflexivity. Qed.
+
+(** Example: is_foot recognizes mafailun *)
+Example is_foot_example : is_foot mafailun = true.
+Proof. reflexivity. Qed.
+
+(** Counterexamples: is_foot rejects non-foot patterns *)
+Example is_foot_counterexample_empty : is_foot [] = false.
+Proof. reflexivity. Qed.
+
+Example is_foot_counterexample_sabab : is_foot sabab_khafif = false.
+Proof. reflexivity. Qed.
+
+Example is_foot_counterexample_watad : is_foot watad_majmu = false.
+Proof. reflexivity. Qed.
+
+Example is_foot_counterexample_arbitrary : is_foot [Long; Long; Long; Long; Long] = false.
+Proof. reflexivity. Qed.
+
+(** ** Decidable Equality for Foot *)
+
+Definition foot_eq_dec (f1 f2 : foot) : {f1 = f2} + {f1 <> f2}.
+Proof.
+  destruct f1, f2; try (left; reflexivity); right; discriminate.
+Defined.
+
+(** Witness: foot_eq_dec Faulun Faulun *)
+Example foot_eq_dec_witness : exists pf, foot_eq_dec Faulun Faulun = left pf.
+Proof. eexists. reflexivity. Qed.
+
+(** Example: foot_eq_dec Mafailun Mafailun *)
+Example foot_eq_dec_example : exists pf, foot_eq_dec Mafailun Mafailun = left pf.
+Proof. eexists. reflexivity. Qed.
+
+(** Counterexample: foot_eq_dec returns right for different feet *)
+Example foot_eq_dec_counterexample : exists pf, foot_eq_dec Faulun Failun = right pf.
+Proof. eexists. reflexivity. Qed.
+
+(** ** All Feet Are Distinct *)
+
+Lemma foot_patterns_distinct : forall f1 f2 : foot,
+  f1 <> f2 -> foot_pattern f1 <> foot_pattern f2.
+Proof.
+  intros f1 f2 Hneq.
+  destruct f1, f2; try contradiction; simpl; discriminate.
+Qed.
+
+(** Witness: faulun <> failun patterns *)
+Example foot_distinct_witness : foot_pattern Faulun <> foot_pattern Failun.
+Proof. simpl. discriminate. Qed.
+
+(** Example: mustafilun <> failatun patterns (same length, different content) *)
+Example foot_distinct_example : foot_pattern Mustafilun <> foot_pattern Failatun.
+Proof. simpl. discriminate. Qed.
+
+(** Counterexample: same foot has same pattern *)
+Example foot_same_pattern : foot_pattern Faulun = foot_pattern Faulun.
+Proof. reflexivity. Qed.
+
+(** ** Foot Enumeration *)
+
+Definition all_feet : list foot :=
+  [Faulun; Failun; Mafailun; Mustafilun; Failatun; Mafulatu; Mutafailun; Mufaalatun].
+
+Lemma all_feet_complete : forall f : foot, In f all_feet.
+Proof.
+  intros f. destruct f; simpl.
+  - left. reflexivity.
+  - right. left. reflexivity.
+  - right. right. left. reflexivity.
+  - right. right. right. left. reflexivity.
+  - right. right. right. right. left. reflexivity.
+  - right. right. right. right. right. left. reflexivity.
+  - right. right. right. right. right. right. left. reflexivity.
+  - right. right. right. right. right. right. right. left. reflexivity.
+Qed.
+
+(** Witness: Faulun is in all_feet *)
+Example all_feet_witness : In Faulun all_feet.
+Proof. left. reflexivity. Qed.
+
+(** Example: Mufaalatun (last) is in all_feet *)
+Example all_feet_example : In Mufaalatun all_feet.
+Proof.
+  right. right. right. right. right. right. right. left. reflexivity.
+Qed.
+
+(** Counterexample: incomplete list fails completeness *)
+Example all_feet_counterexample : ~ (forall f : foot, In f [Faulun; Failun]).
+Proof.
+  intros H. specialize (H Mafailun). simpl in H.
+  destruct H as [H | [H | H]].
+  - discriminate.
+  - discriminate.
+  - contradiction.
+Qed.
+
+(** ** Foot Count *)
+
+Lemma all_feet_length : length all_feet = 8.
+Proof. reflexivity. Qed.
+
+(** Witness: 8 feet *)
+Example all_feet_count_witness : length all_feet = 8.
+Proof. reflexivity. Qed.
+
+(** Example: not 7, not 9 *)
+Example all_feet_count_example : length all_feet <> 7 /\ length all_feet <> 9.
+Proof. split; discriminate. Qed.
+
+(** Counterexample: a 7-element list has wrong count *)
+Example all_feet_count_counterexample :
+  length [Faulun; Failun; Mafailun; Mustafilun; Failatun; Mafulatu; Mutafailun] <> 8.
+Proof. discriminate. Qed.
+
+(** ** No Duplicate Feet *)
+
+Lemma all_feet_nodup : NoDup all_feet.
+Proof.
+  unfold all_feet.
+  constructor. { simpl. intros [H|[H|[H|[H|[H|[H|[H|H]]]]]]]; discriminate || contradiction. }
+  constructor. { simpl. intros [H|[H|[H|[H|[H|[H|H]]]]]]; discriminate || contradiction. }
+  constructor. { simpl. intros [H|[H|[H|[H|[H|H]]]]]; discriminate || contradiction. }
+  constructor. { simpl. intros [H|[H|[H|[H|H]]]]; discriminate || contradiction. }
+  constructor. { simpl. intros [H|[H|[H|H]]]; discriminate || contradiction. }
+  constructor. { simpl. intros [H|[H|H]]; discriminate || contradiction. }
+  constructor. { simpl. intros [H|H]; discriminate || contradiction. }
+  constructor. { simpl. intros H; contradiction. }
+  constructor.
+Qed.
+
+(** Witness: NoDup all_feet *)
+Example all_feet_nodup_witness : NoDup all_feet.
+Proof. exact all_feet_nodup. Qed.
+
+(** Example: NoDup for partial list *)
+Example all_feet_nodup_example : NoDup [Faulun; Failun; Mafailun].
+Proof.
+  constructor. { simpl. intros [H|[H|H]]; discriminate || contradiction. }
+  constructor. { simpl. intros [H|H]; discriminate || contradiction. }
+  constructor. { simpl. intros H; contradiction. }
+  constructor.
+Qed.
+
+(** Counterexample: duplicates fail NoDup *)
+Example all_feet_nodup_counterexample : ~ NoDup [Faulun; Faulun].
+Proof.
+  intros H. inversion H as [| x xs Hnotin Hnodup].
+  apply Hnotin. left. reflexivity.
+Qed.
+
+(** ** Foot Pattern Injectivity *)
+
+Lemma foot_pattern_injective : forall f1 f2 : foot,
+  foot_pattern f1 = foot_pattern f2 -> f1 = f2.
+Proof.
+  intros f1 f2 H.
+  destruct f1, f2; simpl in H; try reflexivity; discriminate.
+Qed.
+
+(** Witness: same pattern implies same foot *)
+Example foot_pattern_injective_witness :
+  foot_pattern Faulun = foot_pattern Faulun -> Faulun = Faulun.
+Proof. intros _. reflexivity. Qed.
+
+(** Example: injectivity for quadrisyllabic feet *)
+Example foot_pattern_injective_example :
+  foot_pattern Mafailun = foot_pattern Mafailun -> Mafailun = Mafailun.
+Proof. intros _. reflexivity. Qed.
+
+(** Counterexample: different patterns imply different feet *)
+Example foot_pattern_injective_counterexample :
+  foot_pattern Faulun <> foot_pattern Failun.
+Proof. discriminate. Qed.
+
+(** End of Section 3: The Eight Feet *)
