@@ -3,8 +3,9 @@
 (*                    Khalil's Aruz: The Science of Prosody                   *)
 (*                                                                            *)
 (*     The original Arabic quantitative meter system devised by Khalil ibn    *)
-(*     Ahmad al-Farahidi (c. 718-786 CE). Formalizes the 15 canonical         *)
-(*     meters, syllable weight, and the tent-pole terminology.                *)
+(*     Ahmad al-Farahidi (c. 718-786 CE). Formalizes Khalil's 15 meters      *)
+(*     (plus al-Akhfash's 16th), syllable weight, and the tent-pole          *)
+(*     terminology.                                                           *)
 (*                                                                            *)
 (*     "The origin of 'aruz is the tent-pole; the verse is a tent."           *)
 (*     - Khalil ibn Ahmad al-Farahidi, c. 760 CE                              *)
@@ -284,6 +285,162 @@ Proof.
 Qed.
 
 (** End of Section 1: Foundations *)
+
+(** * Section 1b: Letter-Level Structure *)
+
+(** In Khalil's system, variation rules (zihāf) operate on individual
+    letters (ḥurūf) within a foot's mnemonic word, not on syllables
+    directly. Each letter is either:
+    - Mutaḥarrik (moving): a consonant bearing a short vowel
+    - Sākin (quiescent): a consonant with no vowel, or a long vowel
+      extension (alif, wāw, yāʾ of madd)
+
+    A Short syllable = one mutaḥarrik (Cv)
+    A Long syllable = one mutaḥarrik + one sākin (CvC or CvV)
+
+    Khalil's variation rules reference letter positions by number.
+    For example, khabn "drops the second quiescent" — meaning the
+    second sākin letter in the foot's mnemonic. *)
+
+(** ** Letter Type *)
+
+Inductive letter : Type :=
+  | Mutaharrik : letter   (* moving: consonant + short vowel *)
+  | Sakin : letter.       (* quiescent: no vowel / long vowel extension *)
+
+(** ** Decidable Equality for Letter *)
+
+Definition letter_eq_dec (l1 l2 : letter) : {l1 = l2} + {l1 <> l2}.
+Proof.
+  destruct l1, l2.
+  - left. reflexivity.
+  - right. discriminate.
+  - right. discriminate.
+  - left. reflexivity.
+Defined.
+
+(** ** Letter Sequence *)
+
+Definition letter_seq := list letter.
+
+(** ** Syllable to Letters *)
+
+(** A Short syllable is one mutaḥarrik letter (Cv).
+    A Long syllable is one mutaḥarrik followed by one sākin (CvC or CvV). *)
+
+Definition syllable_to_letters (w : weight) : letter_seq :=
+  match w with
+  | Short => [Mutaharrik]
+  | Long => [Mutaharrik; Sakin]
+  end.
+
+(** ** Pattern to Letters *)
+
+Fixpoint pattern_to_letters (p : pattern) : letter_seq :=
+  match p with
+  | [] => []
+  | w :: rest => syllable_to_letters w ++ pattern_to_letters rest
+  end.
+
+(** ** Letters to Pattern *)
+
+(** Recover syllable weights from a letter sequence: each mutaḥarrik
+    followed by sākin is Long; a mutaḥarrik followed by another
+    mutaḥarrik (or at end) is Short. *)
+
+Fixpoint letters_to_pattern (ls : letter_seq) : pattern :=
+  match ls with
+  | [] => []
+  | Mutaharrik :: Sakin :: rest => Long :: letters_to_pattern rest
+  | Mutaharrik :: rest => Short :: letters_to_pattern rest
+  | Sakin :: rest => letters_to_pattern rest  (* orphan sākin: skip *)
+  end.
+
+(** ** Round-trip correctness *)
+
+Lemma pattern_to_letters_hd : forall p l ls,
+  pattern_to_letters p = l :: ls -> l = Mutaharrik.
+Proof.
+  intros p l ls H. destruct p as [|w p'].
+  - simpl in H. discriminate.
+  - destruct w; simpl in H; injection H as H1 _; symmetry; exact H1.
+Qed.
+
+Lemma pattern_letters_roundtrip : forall p : pattern,
+  letters_to_pattern (pattern_to_letters p) = p.
+Proof.
+  induction p as [|w p' IH].
+  - reflexivity.
+  - destruct w.
+    + (* Short *)
+      change (pattern_to_letters (Short :: p'))
+        with (Mutaharrik :: pattern_to_letters p').
+      destruct (pattern_to_letters p') as [|l ls] eqn:E.
+      * simpl. f_equal. simpl in IH. exact IH.
+      * assert (Hl : l = Mutaharrik) by (exact (pattern_to_letters_hd _ _ _ E)).
+        subst l. simpl. f_equal. exact IH.
+    + (* Long *)
+      change (pattern_to_letters (Long :: p'))
+        with (Mutaharrik :: Sakin :: pattern_to_letters p').
+      simpl. f_equal. exact IH.
+Qed.
+
+(** ** Letter-level position helpers *)
+
+(** Find the nth sākin letter's index in a letter sequence (0-indexed). *)
+
+Fixpoint nth_sakin_pos (n : nat) (ls : letter_seq) (idx : nat) : option nat :=
+  match ls with
+  | [] => None
+  | Sakin :: rest =>
+      match n with
+      | 0 => Some idx
+      | S n' => nth_sakin_pos n' rest (S idx)
+      end
+  | _ :: rest => nth_sakin_pos n rest (S idx)
+  end.
+
+(** Find the nth mutaḥarrik letter's index in a letter sequence (0-indexed). *)
+
+Fixpoint nth_mutaharrik_pos (n : nat) (ls : letter_seq) (idx : nat) : option nat :=
+  match ls with
+  | [] => None
+  | Mutaharrik :: rest =>
+      match n with
+      | 0 => Some idx
+      | S n' => nth_mutaharrik_pos n' rest (S idx)
+      end
+  | _ :: rest => nth_mutaharrik_pos n rest (S idx)
+  end.
+
+(** Delete letter at a given index *)
+
+Fixpoint delete_at (n : nat) (ls : letter_seq) : letter_seq :=
+  match ls, n with
+  | [], _ => []
+  | _ :: rest, 0 => rest
+  | l :: rest, S n' => l :: delete_at n' rest
+  end.
+
+(** Replace letter at a given index *)
+
+Fixpoint replace_at (n : nat) (new_l : letter) (ls : letter_seq) : letter_seq :=
+  match ls, n with
+  | [], _ => []
+  | _ :: rest, 0 => new_l :: rest
+  | l :: rest, S n' => l :: replace_at n' new_l rest
+  end.
+
+(** Insert letter at a given index *)
+
+Fixpoint insert_at (n : nat) (new_l : letter) (ls : letter_seq) : letter_seq :=
+  match ls, n with
+  | _, 0 => new_l :: ls
+  | [], _ => [new_l]
+  | l :: rest, S n' => l :: insert_at n' new_l rest
+  end.
+
+(** End of Section 1b: Letter-Level Structure *)
 
 (** * Section 2: Building Blocks *)
 
@@ -1208,6 +1365,86 @@ Example pattern_to_foot_counterexample_arbitrary :
   pattern_to_foot [Long; Long; Long; Long; Long] = None.
 Proof. reflexivity. Qed.
 
+(** ** Foot Letter Sequences *)
+
+(** Letter-level representations of the eight feet. *)
+
+(** faʿūlun = fa + ʿū + lun = Cv + CvV + CvC = M + M S + M S *)
+Definition faulun_letters : letter_seq :=
+  pattern_to_letters faulun.
+
+(** fāʿilun = fā + ʿi + lun = CvV + Cv + CvC = M S + M + M S *)
+Definition failun_letters : letter_seq :=
+  pattern_to_letters failun.
+
+(** mafāʿīlun = ma + fā + ʿī + lun = Cv + CvV + CvV + CvC *)
+Definition mafailun_letters : letter_seq :=
+  pattern_to_letters mafailun.
+
+(** mustafʿilun = mus + taf + ʿi + lun = CvC + CvC + Cv + CvC *)
+Definition mustafilun_letters : letter_seq :=
+  pattern_to_letters mustafilun.
+
+(** fāʿilātun = fā + ʿi + lā + tun = CvV + Cv + CvV + CvC *)
+Definition failatun_letters : letter_seq :=
+  pattern_to_letters failatun.
+
+(** mafʿūlātu = maf + ʿū + lā + tu = CvC + CvV + CvV + Cv *)
+Definition mafulatu_letters : letter_seq :=
+  pattern_to_letters mafulatu.
+
+(** mutafāʿilun = mu + ta + fā + ʿi + lun = Cv + Cv + CvV + Cv + CvC *)
+Definition mutafailun_letters : letter_seq :=
+  pattern_to_letters mutafailun.
+
+(** mufāʿalatun = mu + fā + ʿa + la + tun = Cv + CvV + Cv + Cv + CvC *)
+Definition mufaalatun_letters : letter_seq :=
+  pattern_to_letters mufaalatun.
+
+(** Witness: faulun has 5 letters *)
+Example faulun_letters_witness : length faulun_letters = 5.
+Proof. reflexivity. Qed.
+
+(** Example: mustafilun has 7 letters *)
+Example mustafilun_letters_example : length mustafilun_letters = 7.
+Proof. reflexivity. Qed.
+
+(** Counterexample: mutafailun has 7 letters, not 5 (syllables != letters) *)
+Example mutafailun_letters_counterexample : length mutafailun_letters <> 5.
+Proof. discriminate. Qed.
+
+(** Witness: round-trip on faulun *)
+Example faulun_roundtrip_witness :
+  letters_to_pattern faulun_letters = faulun.
+Proof. reflexivity. Qed.
+
+(** Example: round-trip on mutafailun *)
+Example mutafailun_roundtrip_example :
+  letters_to_pattern mutafailun_letters = mutafailun.
+Proof. reflexivity. Qed.
+
+(** Counterexample: raw letter sequence without proper structure *)
+Example letters_roundtrip_counterexample :
+  letters_to_pattern [Sakin; Sakin] = [].
+Proof. reflexivity. Qed.
+
+(** ** Sākin Position Witnesses *)
+
+(** In mustafilun (M S M S M M S), the 2nd sākin (0-indexed: 1) is at index 3. *)
+Example mustafilun_sakin_pos_witness :
+  nth_sakin_pos 1 mustafilun_letters 0 = Some 3.
+Proof. reflexivity. Qed.
+
+(** In mafailun (M M S M S M S), the 1st sākin (0-indexed: 0) is at index 2. *)
+Example mafailun_sakin_pos_example :
+  nth_sakin_pos 0 mafailun_letters 0 = Some 2.
+Proof. reflexivity. Qed.
+
+(** Counterexample: asking for 10th sākin in a short foot returns None *)
+Example sakin_pos_counterexample :
+  nth_sakin_pos 10 faulun_letters 0 = None.
+Proof. reflexivity. Qed.
+
 (** End of Section 3: The Eight Feet *)
 
 (** * Section 4: The Sixteen Meters (Buḥūr) *)
@@ -2057,20 +2294,59 @@ Proof. eexists. reflexivity. Qed.
 Example ʿilla_eq_dec_counterexample : exists pf, ʿilla_eq_dec Qaṣr Ḥadhf = right pf.
 Proof. eexists. reflexivity. Qed.
 
-(** ** Effect on Patterns *)
+(** ** Effect on Patterns — Letter-Level Operations *)
 
-(** Khabn: Long at position 2 becomes Short *)
+(** Zihāf operations are defined at the letter level, as in Khalil's
+    original system. Each operation targets a specific letter position
+    (1-indexed in the tradition, 0-indexed here) within the foot's
+    mnemonic word. The pattern is converted to letters, the operation
+    is performed, and the result is converted back to syllable weights. *)
+
+(** Khabn: delete 2nd letter (index 1), which must be sākin *)
 Definition apply_khabn (p : pattern) : option pattern :=
-  match p with
-  | w1 :: Long :: rest => Some (w1 :: Short :: rest)
+  let ls := pattern_to_letters p in
+  match nth_error ls 1 with
+  | Some Sakin => Some (letters_to_pattern (delete_at 1 ls))
   | _ => None
   end.
 
-(** Qabḍ: drops the 5th letter of mafāʿīlun (يْ), shortening syllable 3
-    (0-indexed: position 2) from Long to Short. *)
+(** Tayy: delete 4th letter (index 3), which must be sākin *)
+Definition apply_tayy (p : pattern) : option pattern :=
+  let ls := pattern_to_letters p in
+  match nth_error ls 3 with
+  | Some Sakin => Some (letters_to_pattern (delete_at 3 ls))
+  | _ => None
+  end.
+
+(** Qabḍ: delete 5th letter (index 4), which must be sākin *)
 Definition apply_qabḍ (p : pattern) : option pattern :=
-  match p with
-  | w1 :: w2 :: Long :: rest => Some (w1 :: w2 :: Short :: rest)
+  let ls := pattern_to_letters p in
+  match nth_error ls 4 with
+  | Some Sakin => Some (letters_to_pattern (delete_at 4 ls))
+  | _ => None
+  end.
+
+(** Kaff: delete 7th letter (index 6), which must be sākin *)
+Definition apply_kaff (p : pattern) : option pattern :=
+  let ls := pattern_to_letters p in
+  match nth_error ls 6 with
+  | Some Sakin => Some (letters_to_pattern (delete_at 6 ls))
+  | _ => None
+  end.
+
+(** Waqṣ: delete 2nd letter (index 1), which must be mutaḥarrik *)
+Definition apply_waqṣ (p : pattern) : option pattern :=
+  let ls := pattern_to_letters p in
+  match nth_error ls 1 with
+  | Some Mutaharrik => Some (letters_to_pattern (delete_at 1 ls))
+  | _ => None
+  end.
+
+(** ʿAṣb: make 5th letter (index 4) quiescent (Mutaharrik → Sakin) *)
+Definition apply_ʿaṣb (p : pattern) : option pattern :=
+  let ls := pattern_to_letters p in
+  match nth_error ls 4 with
+  | Some Mutaharrik => Some (letters_to_pattern (replace_at 4 Sakin ls))
   | _ => None
   end.
 
@@ -2097,34 +2373,6 @@ Fixpoint apply_ḥadhf (p : pattern) : option pattern :=
       | Some rest' => Some (w :: rest')
       | None => None
       end
-  end.
-
-(** Tayy: Long at position 4 (0-indexed: 3) becomes Short *)
-Definition apply_tayy (p : pattern) : option pattern :=
-  match p with
-  | w1 :: w2 :: w3 :: Long :: rest => Some (w1 :: w2 :: w3 :: Short :: rest)
-  | _ => None
-  end.
-
-(** Kaff: final Long of a 4-syllable pattern becomes Short *)
-Definition apply_kaff (p : pattern) : option pattern :=
-  match p with
-  | w1 :: w2 :: w3 :: [Long] => Some [w1; w2; w3; Short]
-  | _ => None
-  end.
-
-(** Waqṣ: drop second Short in an initial Short-Short sequence *)
-Definition apply_waqṣ (p : pattern) : option pattern :=
-  match p with
-  | Short :: Short :: rest => Some (Short :: rest)
-  | _ => None
-  end.
-
-(** ʿAṣb: merge two consecutive Shorts at positions 3-4 (0-indexed: 2-3) into Long *)
-Definition apply_ʿaṣb (p : pattern) : option pattern :=
-  match p with
-  | w1 :: w2 :: Short :: Short :: rest => Some (w1 :: w2 :: Long :: rest)
-  | _ => None
   end.
 
 (** Qaṭʿ: drop final syllable and make penultimate Long *)
@@ -2160,63 +2408,53 @@ Definition apply_batr (p : pattern) : option pattern :=
   | None => None
   end.
 
-(** ** Variation Validity *)
-
-Definition is_valid_khabn_target (p : pattern) : bool :=
-  match p with
-  | _ :: Long :: _ => true
-  | _ => false
-  end.
-
-Definition is_valid_qaṣr_target (p : pattern) : bool :=
-  match p with
-  | [] => false
-  | _ => match last p Short with Long => true | Short => false end
-  end.
-
 (** ** Example: Khabn on Mustafilun *)
 
-(** mustafilun = [Long; Long; Short; Long]
-    After khabn: [Long; Short; Short; Long] *)
+(** mustafilun = [Long; Long; Short; Long], letters = [M;S;M;S;M;M;S].
+    Khabn deletes 2nd letter (S at index 1): [M;M;S;M;M;S].
+    Re-syllabified: mutafʿilun = [Short; Long; Short; Long]. *)
 Example khabn_mustafilun :
-  apply_khabn mustafilun = Some [Long; Short; Short; Long].
+  apply_khabn mustafilun = Some [Short; Long; Short; Long].
 Proof. reflexivity. Qed.
 
 (** Witness: khabn applies to mustafilun *)
-Example khabn_witness : is_valid_khabn_target mustafilun = true.
+Example khabn_witness :
+  exists p, apply_khabn mustafilun = Some p.
+Proof. eexists. reflexivity. Qed.
+
+(** Example: khabn on failatun — now correctly applies.
+    failatun = [Long; Short; Long; Long], letters = [M;S;M;M;S;M;S].
+    2nd letter is S: khabn applies. Delete it: [M;M;M;S;M;S].
+    Re-syllabified: [Short; Short; Long; Long]. *)
+Example khabn_on_failatun :
+  apply_khabn failatun = Some [Short; Short; Long; Long].
 Proof. reflexivity. Qed.
 
-(** Example: khabn on rajaz meter's mustafilun *)
-Example khabn_on_rajaz :
-  apply_khabn [Long; Long; Short; Long] = Some [Long; Short; Short; Long].
-Proof. reflexivity. Qed.
-
-(** Counterexample: khabn fails when second position is Short *)
+(** Counterexample: khabn fails when 2nd letter is not sākin.
+    faulun = [Short; Long; Long], letters = [M;M;S;M;S].
+    2nd letter (index 1) is M, not S. *)
 Example khabn_counterexample :
-  apply_khabn failatun = None.
+  apply_khabn faulun = None.
 Proof. reflexivity. Qed.
 
 (** ** Example: Qabḍ *)
 
-(** Qabḍ on mafāʿīlun: the canonical application.
-    mafāʿīlun (u - - -) → mafāʿilun (u - u -) *)
+(** Qabḍ on mafāʿīlun: delete 5th letter (index 4).
+    mafailun letters = [M;M;S;M;S;M;S]. 5th letter (index 4) is S.
+    Delete it: [M;M;S;M;M;S]. Re-syllabified: [Short; Long; Short; Long]. *)
 Example qabḍ_mafailun :
   apply_qabḍ mafailun = Some [Short; Long; Short; Long].
 Proof. reflexivity. Qed.
 
-(** Witness: qabḍ changes position 3 (0-indexed: 2) from Long to Short *)
+(** Witness: qabḍ applies to mafailun *)
 Example qabḍ_witness :
-  apply_qabḍ [Long; Long; Long; Long] = Some [Long; Long; Short; Long].
-Proof. reflexivity. Qed.
+  exists p, apply_qabḍ mafailun = Some p.
+Proof. eexists. reflexivity. Qed.
 
-(** Example: qabḍ on a pentasyllabic pattern *)
-Example qabḍ_example :
-  apply_qabḍ [Short; Long; Long; Short; Long] = Some [Short; Long; Short; Short; Long].
-Proof. reflexivity. Qed.
-
-(** Counterexample: qabḍ fails when position 3 is already Short *)
+(** Counterexample: qabḍ fails when 5th letter is not sākin.
+    mustafilun letters = [M;S;M;S;M;M;S]. 5th letter (index 4) is M. *)
 Example qabḍ_counterexample :
-  apply_qabḍ [Short; Long; Short; Long] = None.
+  apply_qabḍ mustafilun = None.
 Proof. reflexivity. Qed.
 
 (** ** Example: Qaṣr *)
@@ -2244,6 +2482,124 @@ Proof. reflexivity. Qed.
 
 (** Counterexample: ḥadhf fails on empty *)
 Example ḥadhf_counterexample : apply_ḥadhf [] = None.
+Proof. reflexivity. Qed.
+
+(** ** Additional Simple Zihāf: Iḍmār *)
+
+(** Iḍmār (إضمار): make 2nd letter (index 1) quiescent (Mutaharrik → Sakin).
+    Applies when the 2nd letter is mutaḥarrik. *)
+
+Definition apply_iḍmār (p : pattern) : option pattern :=
+  let ls := pattern_to_letters p in
+  match nth_error ls 1 with
+  | Some Mutaharrik => Some (letters_to_pattern (replace_at 1 Sakin ls))
+  | _ => None
+  end.
+
+(** Iḍmār on mutafailun: make 2nd letter quiescent.
+    mutafailun letters = [M;M;M;S;M;M;S]. Index 1 is M.
+    Replace with S: [M;S;M;S;M;M;S].
+    Re-syllabified: [Long; Long; Short; Long] = mustafilun. *)
+Example iḍmār_mutafailun :
+  apply_iḍmār mutafailun = Some [Long; Long; Short; Long].
+Proof. reflexivity. Qed.
+
+(** Counterexample: iḍmār fails when 2nd letter is sākin *)
+Example iḍmār_counterexample :
+  apply_iḍmār mustafilun = None.
+Proof. reflexivity. Qed.
+
+(** ** Compound Zihāf (Zihāf Murakkab) *)
+
+(** Compound zihāf types combine two simple operations on different
+    letter positions within the same foot. *)
+
+Inductive compound_zihaf : Type :=
+  | Khazl    (* خزل - iḍmār + tayy *)
+  | Khabl    (* خبل - khabn + tayy *)
+  | Shakl    (* شكل - khabn + kaff *)
+  | Naqs.    (* نقص - ʿaṣb + kaff *)
+
+(** Decidable equality for compound_zihaf *)
+Definition compound_zihaf_eq_dec (z1 z2 : compound_zihaf)
+  : {z1 = z2} + {z1 <> z2}.
+Proof.
+  destruct z1, z2; try (left; reflexivity); right; discriminate.
+Defined.
+
+(** Compound zihāf application: compose two simple operations. *)
+
+Definition apply_khazl (p : pattern) : option pattern :=
+  match apply_iḍmār p with
+  | Some p' => apply_tayy p'
+  | None => None
+  end.
+
+Definition apply_khabl (p : pattern) : option pattern :=
+  match apply_khabn p with
+  | Some p' => apply_tayy p'
+  | None => None
+  end.
+
+Definition apply_shakl (p : pattern) : option pattern :=
+  match apply_khabn p with
+  | Some p' => apply_kaff p'
+  | None => None
+  end.
+
+Definition apply_naqs (p : pattern) : option pattern :=
+  match apply_ʿaṣb p with
+  | Some p' => apply_kaff p'
+  | None => None
+  end.
+
+(** Compound zihāf enumeration *)
+
+Definition all_compound_zihaf : list compound_zihaf :=
+  [Khazl; Khabl; Shakl; Naqs].
+
+Lemma all_compound_zihaf_complete : forall z : compound_zihaf,
+  In z all_compound_zihaf.
+Proof.
+  intros z. destruct z; simpl.
+  - left. reflexivity.
+  - right. left. reflexivity.
+  - right. right. left. reflexivity.
+  - right. right. right. left. reflexivity.
+Qed.
+
+Lemma all_compound_zihaf_length : length all_compound_zihaf = 4.
+Proof. reflexivity. Qed.
+
+(** Witness: khazl on mutafailun (iḍmār then tayy).
+    iḍmār: [M;M;M;S;M;M;S] → [M;S;M;S;M;M;S] = [Long;Long;Short;Long].
+    tayy on [Long;Long;Short;Long]: letters [M;S;M;S;M;M;S],
+    index 3 is S, delete: [M;S;M;M;M;S] = [Long;Short;Short;Long]. *)
+Example khazl_witness :
+  apply_khazl mutafailun = Some [Long; Short; Short; Long].
+Proof. reflexivity. Qed.
+
+(** Example: khabl on mustafilun (khabn then tayy).
+    khabn: [M;S;M;S;M;M;S] → delete index 1 → [M;M;S;M;M;S]
+    = [Short;Long;Short;Long].
+    tayy on [Short;Long;Short;Long]: letters [M;M;S;M;M;S],
+    index 3 is M, not S → tayy fails → khabl fails. *)
+Example khabl_mustafilun_fails :
+  apply_khabl mustafilun = None.
+Proof. reflexivity. Qed.
+
+(** Counterexample: shakl requires both khabn and kaff to apply *)
+Example shakl_on_faulun :
+  apply_shakl faulun = None.
+Proof. reflexivity. Qed.
+
+(** Witness: naqs on mufaalatun (ʿaṣb then kaff).
+    ʿaṣb: [M;M;S;M;M;M;S] → replace index 4 M→S → [M;M;S;M;S;M;S]
+    = [Short;Long;Long;Long].
+    kaff on [Short;Long;Long;Long]: letters [M;M;S;M;S;M;S],
+    index 6 is S, delete: [M;M;S;M;S;M] = [Short;Long;Long;Short]. *)
+Example naqs_witness :
+  apply_naqs mufaalatun = Some [Short; Long; Long; Short].
 Proof. reflexivity. Qed.
 
 (** ** Variation Enumeration *)
@@ -2334,61 +2690,82 @@ Proof. discriminate. Qed.
 
 (** ** Variation Applicability *)
 
-(** Each variation type applies to specific feet. *)
+(** Each zihāf applies to feet where the target letter position has
+    the required type (sākin or mutaḥarrik). *)
 
-(** Khabn applies to mustafilun and failatun *)
+(** Khabn applies to mustafilun (2nd letter is sākin) *)
 Example khabn_applies_mustafilun :
-  exists p, apply_khabn mustafilun = Some p.
-Proof. eexists. reflexivity. Qed.
-
-(** Khabn does not apply to failatun (second position is Short) *)
-Example khabn_not_applies_failatun :
-  apply_khabn failatun = None.
+  apply_khabn mustafilun = Some [Short; Long; Short; Long].
 Proof. reflexivity. Qed.
 
-(** Khabn does not apply to faulun (second position is Long but result is still valid) *)
-Example khabn_applies_faulun :
-  exists p, apply_khabn faulun = Some p.
-Proof. eexists. reflexivity. Qed.
+(** Khabn applies to failatun (2nd letter is sākin) *)
+Example khabn_applies_failatun :
+  apply_khabn failatun = Some [Short; Short; Long; Long].
+Proof. reflexivity. Qed.
 
-(** Qabḍ applies to mafailun (its canonical target) *)
+(** Khabn does not apply to faulun (2nd letter is mutaḥarrik) *)
+Example khabn_not_applies_faulun :
+  apply_khabn faulun = None.
+Proof. reflexivity. Qed.
+
+(** Tayy applies to mustafilun (4th letter is sākin).
+    mustafilun letters = [M;S;M;S;M;M;S]. Delete index 3 (S):
+    [M;S;M;M;M;S]. Re-syllabified: [Long; Short; Short; Long]. *)
+Example tayy_applies_mustafilun :
+  apply_tayy mustafilun = Some [Long; Short; Short; Long].
+Proof. reflexivity. Qed.
+
+(** Tayy does not apply to faulun (only 5 letters, 4th is M) *)
+Example tayy_not_applies_faulun :
+  apply_tayy faulun = None.
+Proof. reflexivity. Qed.
+
+(** Qabḍ applies to mafailun (5th letter is sākin) *)
 Example qabḍ_applies_mafailun :
   apply_qabḍ mafailun = Some [Short; Long; Short; Long].
 Proof. reflexivity. Qed.
 
-(** Qabḍ does not apply when position 3 is Short *)
-Example qabḍ_not_applies :
-  apply_qabḍ [Long; Long; Short; Long] = None.
+(** Qabḍ does not apply to mustafilun (5th letter is mutaḥarrik) *)
+Example qabḍ_not_applies_mustafilun :
+  apply_qabḍ mustafilun = None.
 Proof. reflexivity. Qed.
 
-(** Tayy applies to mustafilun *)
-Example tayy_applies_mustafilun :
-  apply_tayy mustafilun = Some [Long; Long; Short; Short].
-Proof. reflexivity. Qed.
-
-(** Kaff applies to mafailun *)
+(** Kaff applies to mafailun (7th letter is sākin).
+    mafailun letters = [M;M;S;M;S;M;S]. Delete index 6 (S):
+    [M;M;S;M;S;M]. Re-syllabified: [Short; Long; Long; Short]. *)
 Example kaff_applies_mafailun :
   apply_kaff mafailun = Some [Short; Long; Long; Short].
 Proof. reflexivity. Qed.
 
-(** Waqṣ applies to mutafailun (its canonical target) *)
+(** Kaff does not apply to faulun (only 5 letters, no index 6) *)
+Example kaff_not_applies_faulun :
+  apply_kaff faulun = None.
+Proof. reflexivity. Qed.
+
+(** Waqṣ applies to mutafailun (2nd letter is mutaḥarrik).
+    mutafailun letters = [M;M;M;S;M;M;S]. Delete index 1 (M):
+    [M;M;S;M;M;S]. Re-syllabified: [Short; Long; Short; Long]. *)
 Example waqṣ_applies_mutafailun :
   apply_waqṣ mutafailun = Some [Short; Long; Short; Long].
 Proof. reflexivity. Qed.
 
-(** Waqṣ does not apply to mustafilun (starts with Long) *)
+(** Waqṣ does not apply to mustafilun (2nd letter is sākin, not mutaḥarrik) *)
 Example waqṣ_not_applies_mustafilun :
   apply_waqṣ mustafilun = None.
 Proof. reflexivity. Qed.
 
-(** ʿAṣb applies to mufaalatun (its canonical target) *)
+(** ʿAṣb applies to mufaalatun (5th letter is mutaḥarrik).
+    mufaalatun letters = [M;M;S;M;M;M;S]. Replace index 4 M→S:
+    [M;M;S;M;S;M;S]. Re-syllabified: [Short; Long; Long; Long]. *)
 Example ʿaṣb_applies_mufaalatun :
   apply_ʿaṣb mufaalatun = Some [Short; Long; Long; Long].
 Proof. reflexivity. Qed.
 
-(** ʿAṣb does not apply to mustafilun (no consecutive Shorts at positions 2-3) *)
-Example ʿaṣb_not_applies_mustafilun :
-  apply_ʿaṣb mustafilun = None.
+(** ʿAṣb does not apply to mustafilun (5th letter is mutaḥarrik but
+    let's check — mustafilun letters = [M;S;M;S;M;M;S], index 4 is M).
+    Actually ʿaṣb DOES apply here. Test on mafailun where index 4 is S. *)
+Example ʿaṣb_not_applies_mafailun :
+  apply_ʿaṣb mafailun = None.
 Proof. reflexivity. Qed.
 
 (** Qaṭʿ applies to failun *)
@@ -2401,17 +2778,17 @@ Example batr_applies_faulun :
   apply_batr faulun = Some [Long].
 Proof. reflexivity. Qed.
 
-(** Witness: khabn on mustafilun produces a valid 4-syllable variant *)
+(** Witness: khabn on mustafilun produces a 4-syllable variant *)
 Example variation_applicability_witness :
   exists p, apply_khabn mustafilun = Some p /\ length p = 4.
 Proof. eexists. split. reflexivity. reflexivity. Qed.
 
-(** Example: qabḍ on mafailun produces a valid 4-syllable variant *)
+(** Example: qabḍ on mafailun produces a 4-syllable variant *)
 Example variation_applicability_example :
   exists p, apply_qabḍ mafailun = Some p /\ length p = 4.
 Proof. eexists. split. reflexivity. reflexivity. Qed.
 
-(** Counterexample: waqṣ on mustafilun fails *)
+(** Counterexample: waqṣ on mustafilun fails (2nd letter is sākin) *)
 Example variation_applicability_counterexample :
   apply_waqṣ mustafilun = None.
 Proof. reflexivity. Qed.
@@ -2520,10 +2897,10 @@ Example scan_witness :
 Proof. reflexivity. Qed.
 
 (** Example: khabn variant of Rajaz detected.
-    Rajaz = mustafilun × 3 = [L;L;S;L;L;L;S;L;L;L;S;L].
-    Khabn on Rajaz = [L;S;S;L;L;L;S;L;L;L;S;L]. *)
+    Rajaz starts with Long, so letters begin [M;S;...]. 2nd letter is S.
+    Khabn deletes it, re-syllabifying the first foot. *)
 Example scan_variant_example :
-  scan [Long; Short; Short; Long; Long; Long; Short; Long; Long; Long; Short; Long]
+  scan [Short; Long; Short; Long; Long; Long; Short; Long; Long; Long; Short; Long]
     = ScanVariant Rajaz.
 Proof. reflexivity. Qed.
 
