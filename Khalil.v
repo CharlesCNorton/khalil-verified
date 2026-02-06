@@ -3035,6 +3035,63 @@ Example ḥadhf_count_counterexample :
   exists p, apply_ḥadhf faulun = Some p /\ length p = 2 /\ length p <> 3.
 Proof. eexists. repeat split; try reflexivity. discriminate. Qed.
 
+(** ** No Variation Maps a Canonical Foot to Another Canonical Foot *)
+
+(** A simple zihāf applied to any canonical foot never produces another
+    canonical foot pattern. This is verified exhaustively: for each
+    (zihāf, foot) pair where the zihāf applies, the result is not in
+    the set of canonical foot patterns. *)
+
+Definition apply_zihaf (z : zihaf) : pattern -> option pattern :=
+  match z with
+  | Khabn => apply_khabn
+  | Tayy => apply_tayy
+  | Qabḍ => apply_qabḍ
+  | Kaff => apply_kaff
+  | Waqṣ => apply_waqṣ
+  | ʿAṣb => apply_ʿaṣb
+  end.
+
+(** The claim "no variation produces a canonical foot" is ALMOST true.
+    There is exactly one exception: ʿaṣb on mufāʿalatun produces
+    [Short; Long; Long; Long] = mafāʿīlun. This is well-known in the
+    tradition — it is why ʿaṣb on Wāfir yields a Hazaj-like pattern.
+
+    We prove the claim for all other (zihāf, foot) pairs exhaustively. *)
+
+(** The single exception: ʿaṣb on mufaalatun yields mafailun's pattern. *)
+Example ʿaṣb_mufaalatun_is_mafailun :
+  apply_ʿaṣb mufaalatun = Some mafailun.
+Proof. reflexivity. Qed.
+
+(** For all other applicable (zihāf, foot) pairs, the result is not a foot. *)
+Lemma zihaf_no_foot_except_ʿaṣb_mufaalatun : forall z f p,
+  apply_zihaf z (foot_pattern f) = Some p ->
+  (z = ʿAṣb /\ f = Mufaalatun) \/ is_foot p = false.
+Proof.
+  intros z f p H.
+  destruct z, f; simpl in H; try discriminate;
+  injection H as Hp; subst p;
+  first [ left; split; reflexivity | right; reflexivity ].
+Qed.
+
+(** Witness: khabn on mustafilun gives [Short;Long;Short;Long], not a foot *)
+Example zihaf_no_foot_witness :
+  apply_khabn mustafilun = Some [Short; Long; Short; Long] /\
+  is_foot [Short; Long; Short; Long] = false.
+Proof. split; reflexivity. Qed.
+
+(** Example: qabḍ on mafailun gives [Short;Long;Short;Long], not a foot *)
+Example zihaf_no_foot_example :
+  apply_qabḍ mafailun = Some [Short; Long; Short; Long] /\
+  is_foot [Short; Long; Short; Long] = false.
+Proof. split; reflexivity. Qed.
+
+(** Counterexample: ʿaṣb on mufaalatun IS a foot *)
+Example zihaf_foot_counterexample :
+  exists p, apply_ʿaṣb mufaalatun = Some p /\ is_foot p = true.
+Proof. exists mafailun. split; reflexivity. Qed.
+
 (** End of Section 6: Variation Rules *)
 
 (** * Section 7: Scansion *)
