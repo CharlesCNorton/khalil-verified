@@ -1009,3 +1009,904 @@ Example pattern_to_foot_counterexample_arbitrary :
 Proof. reflexivity. Qed.
 
 (** End of Section 3: The Eight Feet *)
+
+(** * Section 4: The Sixteen Meters (Buḥūr) *)
+
+(** The buḥūr (بحور, "seas") are the sixteen canonical meters of Arabic poetry.
+    Each meter is defined by a specific sequence of feet. Khalil identified
+    fifteen; the sixteenth (mutadārik) was added by his student al-Akhfash. *)
+
+(** ** Meter Type *)
+
+Inductive meter : Type :=
+  | Tawil      (* الطويل - the long *)
+  | Madid      (* المديد - the extended *)
+  | Basit      (* البسيط - the simple *)
+  | Wafir      (* الوافر - the abundant *)
+  | Kamil      (* الكامل - the complete *)
+  | Hazaj      (* الهزج - the trembling *)
+  | Rajaz      (* الرجز - the tremor *)
+  | Ramal      (* الرمل - the trotting *)
+  | Sari       (* السريع - the swift *)
+  | Munsarih   (* المنسرح - the flowing *)
+  | Khafif     (* الخفيف - the light *)
+  | Mudari     (* المضارع - the similar *)
+  | Muqtadab   (* المقتضب - the curtailed *)
+  | Mujtathth  (* المجتث - the cut off *)
+  | Mutaqarib  (* المتقارب - the approaching *)
+  | Mutadarik. (* المتدارك - the overtaking *)
+
+(** ** Meter Foot Sequences *)
+
+(** Each meter is defined by its sequence of feet in a single hemistich.
+    A full line (bayt) consists of two hemistichs. *)
+
+Definition meter_feet (m : meter) : list foot :=
+  match m with
+  | Tawil      => [Faulun; Mafailun; Faulun; Mafailun]
+  | Madid      => [Failatun; Failun; Failatun]
+  | Basit      => [Mustafilun; Failun; Mustafilun; Failun]
+  | Wafir      => [Mufaalatun; Mufaalatun; Faulun]
+  | Kamil      => [Mutafailun; Mutafailun; Mutafailun]
+  | Hazaj      => [Mafailun; Mafailun]
+  | Rajaz      => [Mustafilun; Mustafilun; Mustafilun]
+  | Ramal      => [Failatun; Failatun; Failatun]
+  | Sari       => [Mustafilun; Mustafilun; Mafulatu]
+  | Munsarih   => [Mustafilun; Mafulatu; Mustafilun]
+  | Khafif     => [Failatun; Mustafilun; Failatun]
+  | Mudari     => [Mafailun; Failatun]
+  | Muqtadab   => [Mafulatu; Mustafilun]
+  | Mujtathth  => [Mustafilun; Failatun]
+  | Mutaqarib  => [Faulun; Faulun; Faulun; Faulun]
+  | Mutadarik  => [Failun; Failun; Failun; Failun]
+  end.
+
+(** ** Meter Pattern *)
+
+(** Flatten feet to get the meter's weight pattern *)
+Definition meter_pattern (m : meter) : pattern :=
+  concat (map foot_pattern (meter_feet m)).
+
+(** ** Decidable Equality for Meter *)
+
+Definition meter_eq_dec (m1 m2 : meter) : {m1 = m2} + {m1 <> m2}.
+Proof.
+  destruct m1, m2; try (left; reflexivity); right; discriminate.
+Defined.
+
+(** Witness: meter_eq_dec Tawil Tawil *)
+Example meter_eq_dec_witness : exists pf, meter_eq_dec Tawil Tawil = left pf.
+Proof. eexists. reflexivity. Qed.
+
+(** Example: meter_eq_dec Kamil Kamil *)
+Example meter_eq_dec_example : exists pf, meter_eq_dec Kamil Kamil = left pf.
+Proof. eexists. reflexivity. Qed.
+
+(** Counterexample: meter_eq_dec returns right for different meters *)
+Example meter_eq_dec_counterexample : exists pf, meter_eq_dec Tawil Basit = right pf.
+Proof. eexists. reflexivity. Qed.
+
+(** ** Meter Enumeration *)
+
+Definition all_meters : list meter :=
+  [Tawil; Madid; Basit; Wafir; Kamil; Hazaj; Rajaz; Ramal;
+   Sari; Munsarih; Khafif; Mudari; Muqtadab; Mujtathth;
+   Mutaqarib; Mutadarik].
+
+Lemma all_meters_complete : forall m : meter, In m all_meters.
+Proof.
+  intros m. destruct m; simpl;
+  repeat (try (left; reflexivity); right).
+Qed.
+
+Lemma all_meters_length : length all_meters = 16.
+Proof. reflexivity. Qed.
+
+(** Witness: Tawil in all_meters *)
+Example all_meters_witness : In Tawil all_meters.
+Proof. left. reflexivity. Qed.
+
+(** Example: Mutadarik (last) in all_meters *)
+Example all_meters_example : In Mutadarik all_meters.
+Proof.
+  unfold all_meters. simpl.
+  repeat (try (left; reflexivity); right).
+Qed.
+
+(** Counterexample: incomplete list fails *)
+Example all_meters_counterexample : ~ (forall m : meter, In m [Tawil; Madid]).
+Proof.
+  intros H. specialize (H Basit). simpl in H.
+  destruct H as [H | [H | H]]; try discriminate; contradiction.
+Qed.
+
+(** ** No Duplicate Meters *)
+
+Lemma all_meters_nodup : NoDup all_meters.
+Proof.
+  unfold all_meters.
+  repeat (constructor; [simpl; intros H; repeat destruct H as [H | H]; try discriminate; try contradiction | ]).
+  constructor.
+Qed.
+
+(** Witness: NoDup all_meters *)
+Example all_meters_nodup_witness : NoDup all_meters.
+Proof. exact all_meters_nodup. Qed.
+
+(** ** Meter Pattern Lengths *)
+
+Definition meter_syllable_count (m : meter) : nat :=
+  length (meter_pattern m).
+
+(** Syllable counts for each meter *)
+Lemma tawil_syllables : meter_syllable_count Tawil = 14.
+Proof. reflexivity. Qed.
+
+Lemma madid_syllables : meter_syllable_count Madid = 11.
+Proof. reflexivity. Qed.
+
+Lemma basit_syllables : meter_syllable_count Basit = 14.
+Proof. reflexivity. Qed.
+
+Lemma wafir_syllables : meter_syllable_count Wafir = 13.
+Proof. reflexivity. Qed.
+
+Lemma kamil_syllables : meter_syllable_count Kamil = 15.
+Proof. reflexivity. Qed.
+
+Lemma hazaj_syllables : meter_syllable_count Hazaj = 8.
+Proof. reflexivity. Qed.
+
+Lemma rajaz_syllables : meter_syllable_count Rajaz = 12.
+Proof. reflexivity. Qed.
+
+Lemma ramal_syllables : meter_syllable_count Ramal = 12.
+Proof. reflexivity. Qed.
+
+Lemma sari_syllables : meter_syllable_count Sari = 12.
+Proof. reflexivity. Qed.
+
+Lemma munsarih_syllables : meter_syllable_count Munsarih = 12.
+Proof. reflexivity. Qed.
+
+Lemma khafif_syllables : meter_syllable_count Khafif = 12.
+Proof. reflexivity. Qed.
+
+Lemma mudari_syllables : meter_syllable_count Mudari = 8.
+Proof. reflexivity. Qed.
+
+Lemma muqtadab_syllables : meter_syllable_count Muqtadab = 8.
+Proof. reflexivity. Qed.
+
+Lemma mujtathth_syllables : meter_syllable_count Mujtathth = 8.
+Proof. reflexivity. Qed.
+
+Lemma mutaqarib_syllables : meter_syllable_count Mutaqarib = 12.
+Proof. reflexivity. Qed.
+
+Lemma mutadarik_syllables : meter_syllable_count Mutadarik = 12.
+Proof. reflexivity. Qed.
+
+(** ** Meter Foot Count *)
+
+Definition meter_foot_count (m : meter) : nat :=
+  length (meter_feet m).
+
+(** Classification by foot count *)
+Definition is_dimeter (m : meter) : bool :=
+  Nat.eqb (meter_foot_count m) 2.
+
+Definition is_trimeter (m : meter) : bool :=
+  Nat.eqb (meter_foot_count m) 3.
+
+Definition is_tetrameter (m : meter) : bool :=
+  Nat.eqb (meter_foot_count m) 4.
+
+Lemma dimeter_meters : forall m,
+  is_dimeter m = true <-> m = Hazaj \/ m = Mudari \/ m = Muqtadab \/ m = Mujtathth.
+Proof.
+  intros m. unfold is_dimeter, meter_foot_count. split.
+  - destruct m; simpl; intros H; try discriminate.
+    + left. reflexivity.
+    + right. left. reflexivity.
+    + right. right. left. reflexivity.
+    + right. right. right. reflexivity.
+  - intros [H|[H|[H|H]]]; rewrite H; reflexivity.
+Qed.
+
+Lemma trimeter_meters : forall m,
+  is_trimeter m = true <->
+    m = Madid \/ m = Wafir \/ m = Kamil \/ m = Rajaz \/ m = Ramal \/
+    m = Sari \/ m = Munsarih \/ m = Khafif.
+Proof.
+  intros m. unfold is_trimeter, meter_foot_count. split.
+  - destruct m; simpl; intros H; try discriminate.
+    + left. reflexivity.
+    + right. left. reflexivity.
+    + right. right. left. reflexivity.
+    + right. right. right. left. reflexivity.
+    + right. right. right. right. left. reflexivity.
+    + right. right. right. right. right. left. reflexivity.
+    + right. right. right. right. right. right. left. reflexivity.
+    + right. right. right. right. right. right. right. reflexivity.
+  - intros [H|[H|[H|[H|[H|[H|[H|H]]]]]]]; rewrite H; reflexivity.
+Qed.
+
+Lemma tetrameter_meters : forall m,
+  is_tetrameter m = true <-> m = Tawil \/ m = Basit \/ m = Mutaqarib \/ m = Mutadarik.
+Proof.
+  intros m. unfold is_tetrameter, meter_foot_count. split.
+  - destruct m; simpl; intros H; try discriminate.
+    + left. reflexivity.
+    + right. left. reflexivity.
+    + right. right. left. reflexivity.
+    + right. right. right. reflexivity.
+  - intros [H|[H|[H|H]]]; rewrite H; reflexivity.
+Qed.
+
+(** Witness: Hazaj is dimeter *)
+Example dimeter_witness : is_dimeter Hazaj = true.
+Proof. reflexivity. Qed.
+
+(** Example: Kamil is trimeter *)
+Example trimeter_example : is_trimeter Kamil = true.
+Proof. reflexivity. Qed.
+
+(** Counterexample: Tawil is not trimeter *)
+Example trimeter_counterexample : is_trimeter Tawil = false.
+Proof. reflexivity. Qed.
+
+(** ** Meter Pattern Distinctness *)
+
+Lemma meter_patterns_distinct : forall m1 m2 : meter,
+  m1 <> m2 -> meter_pattern m1 <> meter_pattern m2.
+Proof.
+  intros m1 m2 Hneq.
+  destruct m1, m2; try contradiction; simpl; discriminate.
+Qed.
+
+(** Witness: Tawil and Basit have different patterns *)
+Example meter_distinct_witness : meter_pattern Tawil <> meter_pattern Basit.
+Proof. simpl. discriminate. Qed.
+
+(** Example: Rajaz and Ramal differ (same length, different content) *)
+Example meter_distinct_example : meter_pattern Rajaz <> meter_pattern Ramal.
+Proof. simpl. discriminate. Qed.
+
+(** Counterexample: same meter has same pattern *)
+Example meter_same_pattern : meter_pattern Kamil = meter_pattern Kamil.
+Proof. reflexivity. Qed.
+
+(** ** Meter Recognition *)
+
+Definition pattern_to_meter (p : pattern) : option meter :=
+  if pattern_eqb p (meter_pattern Tawil) then Some Tawil
+  else if pattern_eqb p (meter_pattern Madid) then Some Madid
+  else if pattern_eqb p (meter_pattern Basit) then Some Basit
+  else if pattern_eqb p (meter_pattern Wafir) then Some Wafir
+  else if pattern_eqb p (meter_pattern Kamil) then Some Kamil
+  else if pattern_eqb p (meter_pattern Hazaj) then Some Hazaj
+  else if pattern_eqb p (meter_pattern Rajaz) then Some Rajaz
+  else if pattern_eqb p (meter_pattern Ramal) then Some Ramal
+  else if pattern_eqb p (meter_pattern Sari) then Some Sari
+  else if pattern_eqb p (meter_pattern Munsarih) then Some Munsarih
+  else if pattern_eqb p (meter_pattern Khafif) then Some Khafif
+  else if pattern_eqb p (meter_pattern Mudari) then Some Mudari
+  else if pattern_eqb p (meter_pattern Muqtadab) then Some Muqtadab
+  else if pattern_eqb p (meter_pattern Mujtathth) then Some Mujtathth
+  else if pattern_eqb p (meter_pattern Mutaqarib) then Some Mutaqarib
+  else if pattern_eqb p (meter_pattern Mutadarik) then Some Mutadarik
+  else None.
+
+Lemma pattern_to_meter_correct : forall m : meter,
+  pattern_to_meter (meter_pattern m) = Some m.
+Proof.
+  intros m. destruct m; reflexivity.
+Qed.
+
+(** Witness: pattern_to_meter recovers Tawil *)
+Example pattern_to_meter_witness : pattern_to_meter (meter_pattern Tawil) = Some Tawil.
+Proof. reflexivity. Qed.
+
+(** Example: pattern_to_meter recovers Mutadarik (last) *)
+Example pattern_to_meter_example : pattern_to_meter (meter_pattern Mutadarik) = Some Mutadarik.
+Proof. reflexivity. Qed.
+
+(** Counterexample: non-meter patterns return None *)
+Example pattern_to_meter_counterexample : pattern_to_meter [] = None.
+Proof. reflexivity. Qed.
+
+(** ** Khalil's Fifteen vs. Sixteen *)
+
+(** Khalil identified 15 meters; Mutadarik was added later *)
+Definition khalil_original : list meter :=
+  [Tawil; Madid; Basit; Wafir; Kamil; Hazaj; Rajaz; Ramal;
+   Sari; Munsarih; Khafif; Mudari; Muqtadab; Mujtathth; Mutaqarib].
+
+Definition is_khalil_original (m : meter) : bool :=
+  match m with
+  | Mutadarik => false
+  | _ => true
+  end.
+
+Lemma khalil_original_length : length khalil_original = 15.
+Proof. reflexivity. Qed.
+
+Lemma mutadarik_not_khalil : is_khalil_original Mutadarik = false.
+Proof. reflexivity. Qed.
+
+Lemma others_khalil_original : forall m,
+  m <> Mutadarik -> is_khalil_original m = true.
+Proof.
+  intros m Hneq. destruct m; try reflexivity; contradiction.
+Qed.
+
+(** Witness: Tawil is Khalil original *)
+Example khalil_original_witness : is_khalil_original Tawil = true.
+Proof. reflexivity. Qed.
+
+(** Example: Mutaqarib (last Khalil original) *)
+Example khalil_original_example : is_khalil_original Mutaqarib = true.
+Proof. reflexivity. Qed.
+
+(** Counterexample: Mutadarik is not Khalil original *)
+Example khalil_original_counterexample : is_khalil_original Mutadarik = false.
+Proof. reflexivity. Qed.
+
+(** End of Section 4: The Sixteen Meters *)
+
+(** * Section 5: The Five Circles (Dawāʾir) *)
+
+(** Khalil organized the meters into five circles (dawāʾir, دوائر), each
+    grouping meters by their derivational relationships. Meters in the same
+    circle share a common underlying pattern that can be rotated to produce
+    the different meters. *)
+
+(** ** Circle Type *)
+
+Inductive circle : Type :=
+  | Mukhtalifa   (* المختلفة - the mixed/different *)
+  | Mualifa      (* المؤتلفة - the harmonious *)
+  | Mujtallaba   (* المجتلبة - the attracted *)
+  | Mushtabaha   (* المشتبهة - the similar *)
+  | Muttafiqa.   (* المتفقة - the agreeing *)
+
+(** ** Circle Membership *)
+
+Definition meter_circle (m : meter) : circle :=
+  match m with
+  | Tawil | Madid | Basit => Mukhtalifa
+  | Wafir | Kamil => Mualifa
+  | Hazaj | Rajaz | Ramal => Mujtallaba
+  | Sari | Munsarih | Khafif | Mudari | Muqtadab | Mujtathth => Mushtabaha
+  | Mutaqarib | Mutadarik => Muttafiqa
+  end.
+
+(** ** Circle Meters *)
+
+Definition circle_meters (c : circle) : list meter :=
+  match c with
+  | Mukhtalifa => [Tawil; Madid; Basit]
+  | Mualifa => [Wafir; Kamil]
+  | Mujtallaba => [Hazaj; Rajaz; Ramal]
+  | Mushtabaha => [Sari; Munsarih; Khafif; Mudari; Muqtadab; Mujtathth]
+  | Muttafiqa => [Mutaqarib; Mutadarik]
+  end.
+
+(** ** Decidable Equality for Circle *)
+
+Definition circle_eq_dec (c1 c2 : circle) : {c1 = c2} + {c1 <> c2}.
+Proof.
+  destruct c1, c2; try (left; reflexivity); right; discriminate.
+Defined.
+
+(** Witness: circle_eq_dec Mukhtalifa Mukhtalifa *)
+Example circle_eq_dec_witness : exists pf, circle_eq_dec Mukhtalifa Mukhtalifa = left pf.
+Proof. eexists. reflexivity. Qed.
+
+(** Example: circle_eq_dec Muttafiqa Muttafiqa *)
+Example circle_eq_dec_example : exists pf, circle_eq_dec Muttafiqa Muttafiqa = left pf.
+Proof. eexists. reflexivity. Qed.
+
+(** Counterexample: different circles *)
+Example circle_eq_dec_counterexample : exists pf, circle_eq_dec Mukhtalifa Mualifa = right pf.
+Proof. eexists. reflexivity. Qed.
+
+(** ** Circle Enumeration *)
+
+Definition all_circles : list circle :=
+  [Mukhtalifa; Mualifa; Mujtallaba; Mushtabaha; Muttafiqa].
+
+Lemma all_circles_complete : forall c : circle, In c all_circles.
+Proof.
+  intros c. destruct c; simpl.
+  - left. reflexivity.
+  - right. left. reflexivity.
+  - right. right. left. reflexivity.
+  - right. right. right. left. reflexivity.
+  - right. right. right. right. left. reflexivity.
+Qed.
+
+Lemma all_circles_length : length all_circles = 5.
+Proof. reflexivity. Qed.
+
+(** Witness: Mukhtalifa in all_circles *)
+Example all_circles_witness : In Mukhtalifa all_circles.
+Proof. left. reflexivity. Qed.
+
+(** Example: Muttafiqa (last) in all_circles *)
+Example all_circles_example : In Muttafiqa all_circles.
+Proof. right. right. right. right. left. reflexivity. Qed.
+
+(** Counterexample: incomplete list fails *)
+Example all_circles_counterexample : ~ (forall c : circle, In c [Mukhtalifa; Mualifa]).
+Proof.
+  intros H. specialize (H Mujtallaba). simpl in H.
+  destruct H as [H | [H | H]]; try discriminate; contradiction.
+Qed.
+
+(** ** No Duplicate Circles *)
+
+Lemma all_circles_nodup : NoDup all_circles.
+Proof.
+  unfold all_circles.
+  constructor. { simpl. intros [H|[H|[H|[H|H]]]]; discriminate || contradiction. }
+  constructor. { simpl. intros [H|[H|[H|H]]]; discriminate || contradiction. }
+  constructor. { simpl. intros [H|[H|H]]; discriminate || contradiction. }
+  constructor. { simpl. intros [H|H]; discriminate || contradiction. }
+  constructor. { simpl. intros H; contradiction. }
+  constructor.
+Qed.
+
+(** Witness: NoDup all_circles *)
+Example all_circles_nodup_witness : NoDup all_circles.
+Proof. exact all_circles_nodup. Qed.
+
+(** ** Membership Consistency *)
+
+Lemma meter_in_circle : forall m : meter,
+  In m (circle_meters (meter_circle m)).
+Proof.
+  intros m. destruct m; simpl.
+  - left. reflexivity.
+  - right. left. reflexivity.
+  - right. right. left. reflexivity.
+  - left. reflexivity.
+  - right. left. reflexivity.
+  - left. reflexivity.
+  - right. left. reflexivity.
+  - right. right. left. reflexivity.
+  - left. reflexivity.
+  - right. left. reflexivity.
+  - right. right. left. reflexivity.
+  - right. right. right. left. reflexivity.
+  - right. right. right. right. left. reflexivity.
+  - right. right. right. right. right. left. reflexivity.
+  - left. reflexivity.
+  - right. left. reflexivity.
+Qed.
+
+(** Witness: Tawil in Mukhtalifa *)
+Example meter_in_circle_witness : In Tawil (circle_meters Mukhtalifa).
+Proof. left. reflexivity. Qed.
+
+(** Example: Mujtathth in Mushtabaha *)
+Example meter_in_circle_example : In Mujtathth (circle_meters Mushtabaha).
+Proof. right. right. right. right. right. left. reflexivity. Qed.
+
+(** Counterexample: Tawil not in Muttafiqa *)
+Example meter_not_in_circle_counterexample : ~ In Tawil (circle_meters Muttafiqa).
+Proof.
+  simpl. intros [H | [H | H]]; try discriminate; contradiction.
+Qed.
+
+(** ** Circle Sizes *)
+
+Lemma mukhtalifa_size : length (circle_meters Mukhtalifa) = 3.
+Proof. reflexivity. Qed.
+
+Lemma mualifa_size : length (circle_meters Mualifa) = 2.
+Proof. reflexivity. Qed.
+
+Lemma mujtallaba_size : length (circle_meters Mujtallaba) = 3.
+Proof. reflexivity. Qed.
+
+Lemma mushtabaha_size : length (circle_meters Mushtabaha) = 6.
+Proof. reflexivity. Qed.
+
+Lemma muttafiqa_size : length (circle_meters Muttafiqa) = 2.
+Proof. reflexivity. Qed.
+
+(** ** Circle Coverage *)
+
+(** All meters belong to exactly one circle *)
+Lemma circles_partition_meters :
+  length (concat (map circle_meters all_circles)) = 16.
+Proof. reflexivity. Qed.
+
+(** ** Circle Recognition from Meter *)
+
+Definition is_in_circle (m : meter) (c : circle) : bool :=
+  existsb (fun m' => match meter_eq_dec m m' with left _ => true | right _ => false end)
+          (circle_meters c).
+
+Lemma is_in_circle_iff_meter_circle : forall m c,
+  is_in_circle m c = true <-> meter_circle m = c.
+Proof.
+  intros m c. unfold is_in_circle. split.
+  - destruct m, c; simpl; intros H; try reflexivity; discriminate.
+  - intros H. subst c. destruct m; reflexivity.
+Qed.
+
+(** Witness: is_in_circle Tawil Mukhtalifa *)
+Example is_in_circle_witness : is_in_circle Tawil Mukhtalifa = true.
+Proof. reflexivity. Qed.
+
+(** Example: is_in_circle Kamil Mualifa *)
+Example is_in_circle_example : is_in_circle Kamil Mualifa = true.
+Proof. reflexivity. Qed.
+
+(** Counterexample: is_in_circle Tawil Muttafiqa *)
+Example is_in_circle_counterexample : is_in_circle Tawil Muttafiqa = false.
+Proof. reflexivity. Qed.
+
+(** ** Circle Uniqueness *)
+
+Lemma meter_circle_unique : forall m,
+  forall c, In m (circle_meters c) -> c = meter_circle m.
+Proof.
+  intros m c H. destruct m, c; simpl in H;
+  repeat (destruct H as [H|H]; try discriminate; try contradiction);
+  reflexivity.
+Qed.
+
+(** Witness: uniqueness for Tawil *)
+Example circle_unique_witness : forall c,
+  In Tawil (circle_meters c) -> c = Mukhtalifa.
+Proof.
+  intros c H. rewrite (meter_circle_unique Tawil c H). reflexivity.
+Qed.
+
+(** End of Section 5: The Five Circles *)
+
+(** * Section 6: Variation Rules (Zihāf and ʿIlla) *)
+
+(** Arabic meters allow systematic modifications to the basic foot patterns.
+    - Zihāf (زحاف): optional modifications that may occur in non-final feet
+    - ʿIlla (علة): obligatory modifications at line endings *)
+
+(** ** Variation Types *)
+
+Inductive zihaf : Type :=
+  | Khabn    (* خبن - drop second quiescent: mustafʿilun → mutafʿilun *)
+  | Tayy     (* طي - drop fourth quiescent: mustafʿilun → mustaʿlun *)
+  | Qabḍ     (* قبض - drop fifth quiescent: mafāʿīlun → mafāʿlun *)
+  | Kaff     (* كف - drop seventh quiescent: mafāʿīlun → mafāʿīlu *)
+  | Waqṣ     (* وقص - drop second: mutafāʿilun → mufāʿilun *)
+  | ʿAṣb.    (* عصب - make fifth quiescent: mufāʿalatun → mufāʿaltun *)
+
+Inductive ʿilla : Type :=
+  | Qaṭʿ     (* قطع - drop final consonant of watad *)
+  | Qaṣr     (* قصر - shorten final long vowel *)
+  | Ḥadhf    (* حذف - drop final sabab *)
+  | Tasbīgh  (* تسبيغ - add consonant to final sabab *)
+  | Batr.    (* بتر - combine Ḥadhf and Qaṭʿ *)
+
+(** ** Effect on Patterns *)
+
+(** Khabn: Long at position 2 becomes Short *)
+Definition apply_khabn (p : pattern) : option pattern :=
+  match p with
+  | w1 :: Long :: rest => Some (w1 :: Short :: rest)
+  | _ => None
+  end.
+
+(** Qabḍ: Long at position 5 becomes Short (0-indexed: position 4) *)
+Definition apply_qabḍ (p : pattern) : option pattern :=
+  match p with
+  | w1 :: w2 :: w3 :: w4 :: Long :: rest => Some (w1 :: w2 :: w3 :: w4 :: Short :: rest)
+  | _ => None
+  end.
+
+(** Qaṣr: Final Long becomes Short *)
+Fixpoint apply_qaṣr (p : pattern) : option pattern :=
+  match p with
+  | [] => None
+  | [Long] => Some [Short]
+  | [Short] => None
+  | w :: rest =>
+      match apply_qaṣr rest with
+      | Some rest' => Some (w :: rest')
+      | None => None
+      end
+  end.
+
+(** Ḥadhf: Drop final sabab (last syllable) *)
+Fixpoint apply_ḥadhf (p : pattern) : option pattern :=
+  match p with
+  | [] => None
+  | [_] => Some []
+  | w :: rest =>
+      match apply_ḥadhf rest with
+      | Some rest' => Some (w :: rest')
+      | None => None
+      end
+  end.
+
+(** ** Variation Validity *)
+
+Definition is_valid_khabn_target (p : pattern) : bool :=
+  match p with
+  | _ :: Long :: _ => true
+  | _ => false
+  end.
+
+Definition is_valid_qaṣr_target (p : pattern) : bool :=
+  match p with
+  | [] => false
+  | _ => match last p Short with Long => true | Short => false end
+  end.
+
+(** ** Example: Khabn on Mustafilun *)
+
+(** mustafilun = [Long; Long; Short; Long]
+    After khabn: [Long; Short; Short; Long] *)
+Example khabn_mustafilun :
+  apply_khabn mustafilun = Some [Long; Short; Short; Long].
+Proof. reflexivity. Qed.
+
+(** Witness: khabn applies to mustafilun *)
+Example khabn_witness : is_valid_khabn_target mustafilun = true.
+Proof. reflexivity. Qed.
+
+(** Example: khabn on rajaz meter's mustafilun *)
+Example khabn_on_rajaz :
+  apply_khabn [Long; Long; Short; Long] = Some [Long; Short; Short; Long].
+Proof. reflexivity. Qed.
+
+(** Counterexample: khabn fails when second position is Short *)
+Example khabn_counterexample :
+  apply_khabn failatun = None.
+Proof. reflexivity. Qed.
+
+(** ** Example: Qabḍ *)
+
+(** Qabḍ changes position 5 (0-indexed: 4) from Long to Short *)
+Example qabḍ_example :
+  apply_qabḍ [Short; Long; Long; Long; Long] = Some [Short; Long; Long; Long; Short].
+Proof. reflexivity. Qed.
+
+(** Counterexample: qabḍ fails on 4-element pattern *)
+Example qabḍ_counterexample : apply_qabḍ mafailun = None.
+Proof. reflexivity. Qed.
+
+(** ** Example: Qaṣr *)
+
+(** Convert final Long to Short *)
+Example qaṣr_example :
+  apply_qaṣr [Short; Long; Long] = Some [Short; Long; Short].
+Proof. reflexivity. Qed.
+
+(** Counterexample: qaṣr fails when final is Short *)
+Example qaṣr_counterexample :
+  apply_qaṣr [Long; Short] = None.
+Proof. reflexivity. Qed.
+
+(** ** Example: Ḥadhf *)
+
+(** Drop final syllable *)
+Example ḥadhf_example :
+  apply_ḥadhf [Short; Long; Long] = Some [Short; Long].
+Proof. reflexivity. Qed.
+
+Example ḥadhf_faulun :
+  apply_ḥadhf faulun = Some [Short; Long].
+Proof. reflexivity. Qed.
+
+(** Counterexample: ḥadhf fails on empty *)
+Example ḥadhf_counterexample : apply_ḥadhf [] = None.
+Proof. reflexivity. Qed.
+
+(** ** Variation Enumeration *)
+
+Definition all_zihaf : list zihaf := [Khabn; Tayy; Qabḍ; Kaff; Waqṣ; ʿAṣb].
+Definition all_ʿilla : list ʿilla := [Qaṭʿ; Qaṣr; Ḥadhf; Tasbīgh; Batr].
+
+Lemma all_zihaf_complete : forall z : zihaf, In z all_zihaf.
+Proof.
+  intros z. destruct z; simpl.
+  - left. reflexivity.
+  - right. left. reflexivity.
+  - right. right. left. reflexivity.
+  - right. right. right. left. reflexivity.
+  - right. right. right. right. left. reflexivity.
+  - right. right. right. right. right. left. reflexivity.
+Qed.
+
+Lemma all_ʿilla_complete : forall i : ʿilla, In i all_ʿilla.
+Proof.
+  intros i. destruct i; simpl.
+  - left. reflexivity.
+  - right. left. reflexivity.
+  - right. right. left. reflexivity.
+  - right. right. right. left. reflexivity.
+  - right. right. right. right. left. reflexivity.
+Qed.
+
+Lemma all_zihaf_length : length all_zihaf = 6.
+Proof. reflexivity. Qed.
+
+Lemma all_ʿilla_length : length all_ʿilla = 5.
+Proof. reflexivity. Qed.
+
+(** Witness: Khabn in all_zihaf *)
+Example all_zihaf_witness : In Khabn all_zihaf.
+Proof. left. reflexivity. Qed.
+
+(** Example: Qaṣr in all_ʿilla *)
+Example all_ʿilla_example : In Qaṣr all_ʿilla.
+Proof. right. left. reflexivity. Qed.
+
+(** End of Section 6: Variation Rules *)
+
+(** * Section 7: Scansion *)
+
+(** Scansion is the process of analyzing a verse to determine its metrical pattern.
+    In a full implementation, this would involve:
+    1. Phonological analysis of Arabic text
+    2. Syllable boundary detection
+    3. Weight assignment (open/closed syllables)
+    4. Pattern matching against known meters
+
+    Here we formalize the abstract scansion process, assuming syllable weights
+    are already determined. *)
+
+(** ** Scansion Result *)
+
+Inductive scan_result : Type :=
+  | ScanSuccess : meter -> scan_result
+  | ScanVariant : meter -> scan_result  (* matches with variations *)
+  | ScanFailed : scan_result.
+
+(** ** Direct Meter Matching *)
+
+Definition scan_exact (p : pattern) : scan_result :=
+  match pattern_to_meter p with
+  | Some m => ScanSuccess m
+  | None => ScanFailed
+  end.
+
+(** Witness: exact match for Tawil *)
+Example scan_exact_witness :
+  scan_exact (meter_pattern Tawil) = ScanSuccess Tawil.
+Proof. reflexivity. Qed.
+
+(** Example: exact match for Kamil *)
+Example scan_exact_example :
+  scan_exact (meter_pattern Kamil) = ScanSuccess Kamil.
+Proof. reflexivity. Qed.
+
+(** Counterexample: non-meter pattern fails *)
+Example scan_exact_counterexample :
+  scan_exact [] = ScanFailed.
+Proof. reflexivity. Qed.
+
+(** ** Hemistich Repetition *)
+
+(** A full line (bayt) consists of two hemistichs (shaṭr).
+    This checks if a pattern is exactly two repetitions of a meter. *)
+
+Definition is_full_line (p : pattern) (m : meter) : bool :=
+  pattern_eqb p (meter_pattern m ++ meter_pattern m).
+
+(** Witness: double Tawil is full line *)
+Example full_line_witness :
+  is_full_line (meter_pattern Tawil ++ meter_pattern Tawil) Tawil = true.
+Proof. reflexivity. Qed.
+
+(** Example: double Hazaj *)
+Example full_line_example :
+  is_full_line (meter_pattern Hazaj ++ meter_pattern Hazaj) Hazaj = true.
+Proof. reflexivity. Qed.
+
+(** Counterexample: single hemistich is not full line *)
+Example full_line_counterexample :
+  is_full_line (meter_pattern Tawil) Tawil = false.
+Proof. reflexivity. Qed.
+
+(** ** Pattern Prefix Matching *)
+
+(** Check if a pattern is a prefix of a meter pattern *)
+Fixpoint is_prefix (p1 p2 : pattern) : bool :=
+  match p1, p2 with
+  | [], _ => true
+  | _, [] => false
+  | w1 :: p1', w2 :: p2' =>
+      weight_eqb w1 w2 && is_prefix p1' p2'
+  end.
+
+Lemma is_prefix_refl : forall p, is_prefix p p = true.
+Proof.
+  induction p as [|w p' IH]; simpl.
+  - reflexivity.
+  - rewrite IH. destruct w; reflexivity.
+Qed.
+
+Lemma is_prefix_nil : forall p, is_prefix [] p = true.
+Proof. reflexivity. Qed.
+
+(** Witness: prefix check *)
+Example is_prefix_witness : is_prefix [Short; Long] [Short; Long; Long] = true.
+Proof. reflexivity. Qed.
+
+(** Example: full pattern is prefix of itself *)
+Example is_prefix_example : is_prefix faulun faulun = true.
+Proof. reflexivity. Qed.
+
+(** Counterexample: longer pattern is not prefix *)
+Example is_prefix_counterexample : is_prefix [Short; Long; Long] [Short; Long] = false.
+Proof. reflexivity. Qed.
+
+(** ** Candidate Meter Detection *)
+
+(** Find all meters whose pattern starts with the given prefix *)
+Definition candidate_meters (p : pattern) : list meter :=
+  filter (fun m => is_prefix p (meter_pattern m)) all_meters.
+
+(** Witness: Short-Long-Long prefix matches Tawil, Wafir, Mutaqarib *)
+Example candidate_meters_witness :
+  In Tawil (candidate_meters [Short; Long]).
+Proof.
+  unfold candidate_meters. simpl.
+  left. reflexivity.
+Qed.
+
+(** Example: Long-Long prefix matches Basit, Rajaz, etc. *)
+Example candidate_meters_example :
+  In Basit (candidate_meters [Long; Long]).
+Proof.
+  unfold candidate_meters. simpl.
+  left. reflexivity.
+Qed.
+
+(** Counterexample: impossible prefix has no candidates *)
+Example candidate_meters_counterexample :
+  candidate_meters [Short; Short; Short; Short; Short; Short; Short; Short; Short] = [].
+Proof. reflexivity. Qed.
+
+(** ** Scansion Summary *)
+
+(** Successful scansion requires:
+    1. A weight pattern derived from phonological analysis
+    2. Exact or variant match against known meters
+    3. Optional: identification of zihāf/ʿilla modifications *)
+
+Definition scan_summary (p : pattern) : option meter :=
+  pattern_to_meter p.
+
+Lemma scan_summary_correct : forall m,
+  scan_summary (meter_pattern m) = Some m.
+Proof.
+  intros m. unfold scan_summary. apply pattern_to_meter_correct.
+Qed.
+
+(** Witness: scan_summary *)
+Example scan_summary_witness :
+  scan_summary (meter_pattern Mutaqarib) = Some Mutaqarib.
+Proof. reflexivity. Qed.
+
+(** End of Section 7: Scansion *)
+
+(** * Conclusion *)
+
+(** This formalization covers Khalil ibn Ahmad al-Farahidi's aruz system:
+    - Section 1: Weight foundations (Short/Long syllables)
+    - Section 2: Building blocks (sabab, watad)
+    - Section 3: The eight tafāʿīl (feet) with decomposition
+    - Section 4: The sixteen buḥūr (meters)
+    - Section 5: The five dawāʾir (circles)
+    - Section 6: Variation rules (zihāf, ʿilla)
+    - Section 7: Scansion framework
+
+    The original system dates to c. 760 CE and forms the foundation of
+    Arabic, Persian, Turkish, Kurdish, and Urdu prosody. *)
