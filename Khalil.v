@@ -59,10 +59,12 @@ Proof.
   reflexivity.
 Qed.
 
-(** Counterexample: Short <> Long *)
-Example weight_neq_counterexample : Short <> Long.
+(** Counterexample: weight_eq_dec correctly returns right for unequal inputs.
+    A buggy implementation might return left for all inputs. *)
+Example weight_eq_dec_counterexample :
+  exists pf, weight_eq_dec Short Long = right pf.
 Proof.
-  discriminate.
+  eexists. reflexivity.
 Qed.
 
 (** ** Boolean Equality for Weight *)
@@ -94,11 +96,13 @@ Proof.
   reflexivity.
 Qed.
 
-(** Counterexample: weight_eqb Short Long = false *)
-Example weight_eqb_counterexample : weight_eqb Short Long = false.
-Proof.
-  reflexivity.
-Qed.
+(** Counterexample: weight_eqb returns false for unequal inputs in both directions.
+    A buggy implementation might only check one direction. *)
+Example weight_eqb_counterexample_1 : weight_eqb Short Long = false.
+Proof. reflexivity. Qed.
+
+Example weight_eqb_counterexample_2 : weight_eqb Long Short = false.
+Proof. reflexivity. Qed.
 
 (** ** Decidable Equality for Patterns *)
 
@@ -127,11 +131,21 @@ Proof.
   reflexivity.
 Qed.
 
-(** Counterexample: [Short; Long] <> [Long; Short] *)
-Example pattern_neq_counterexample : [Short; Long] <> [Long; Short].
-Proof.
-  discriminate.
-Qed.
+(** Counterexamples for pattern_eq_dec: test failure modes.
+    - Different lengths: a buggy impl might not check length
+    - Same length, differ at head: tests head comparison
+    - Same length, differ at tail: tests recursive case *)
+Example pattern_eq_dec_counterexample_length :
+  exists pf, pattern_eq_dec [] [Short] = right pf.
+Proof. eexists. reflexivity. Qed.
+
+Example pattern_eq_dec_counterexample_head :
+  exists pf, pattern_eq_dec [Short] [Long] = right pf.
+Proof. eexists. reflexivity. Qed.
+
+Example pattern_eq_dec_counterexample_tail :
+  exists pf, pattern_eq_dec [Short; Short] [Short; Long] = right pf.
+Proof. eexists. reflexivity. Qed.
 
 (** ** Boolean Equality for Patterns *)
 
@@ -167,11 +181,15 @@ Proof.
   reflexivity.
 Qed.
 
-(** Counterexample: pattern_eqb [Short] [Long] = false *)
-Example pattern_eqb_counterexample : pattern_eqb [Short] [Long] = false.
-Proof.
-  reflexivity.
-Qed.
+(** Counterexamples for pattern_eqb: same failure modes as pattern_eq_dec *)
+Example pattern_eqb_counterexample_length : pattern_eqb [] [Short] = false.
+Proof. reflexivity. Qed.
+
+Example pattern_eqb_counterexample_head : pattern_eqb [Short] [Long] = false.
+Proof. reflexivity. Qed.
+
+Example pattern_eqb_counterexample_tail : pattern_eqb [Short; Short] [Short; Long] = false.
+Proof. reflexivity. Qed.
 
 (** ** Pattern Length *)
 
@@ -189,10 +207,14 @@ Proof.
   reflexivity.
 Qed.
 
-(** Counterexample: pattern_length [Short] <> 0 *)
-Example pattern_length_counterexample : pattern_length [Short] <> 0.
+(** Counterexample: pattern_length increments correctly.
+    A buggy implementation might return constant 0 or skip elements. *)
+Example pattern_length_counterexample :
+  pattern_length [Short] = 1 /\
+  pattern_length [Short; Long] = 2 /\
+  pattern_length [Short; Long; Short] = 3.
 Proof.
-  discriminate.
+  repeat split; reflexivity.
 Qed.
 
 (** ** Weight Enumeration *)
@@ -220,10 +242,13 @@ Proof.
   right. left. reflexivity.
 Qed.
 
-(** Counterexample: length all_weights = 2 (not 1, not 3) *)
-Example all_weights_counterexample : length all_weights = 2.
+(** Counterexample: an incomplete enumeration fails completeness.
+    This shows the property would fail if we forgot an element. *)
+Example all_weights_counterexample : ~ (forall w : weight, In w [Short]).
 Proof.
-  reflexivity.
+  intros H. specialize (H Long). simpl in H. destruct H as [H | H].
+  - discriminate.
+  - contradiction.
 Qed.
 
 (** ** No Duplicate Weights *)
