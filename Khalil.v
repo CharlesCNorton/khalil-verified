@@ -2623,7 +2623,8 @@ Inductive zihaf : Type :=
   | Waqṣ     (* وقص - drop second: mutafāʿilun → mufāʿilun *)
   | ʿAṣb    (* عصب - make fifth quiescent: mufāʿalatun → mufāʿaltun *)
   | Iḍmār   (* إضمار - make second quiescent: mutafāʿilun → mustafʿilun *)
-  | ʿAql.   (* عقل - drop fifth mutaḥarrik: mufāʿalatun → mufāʿlatun *)
+  | ʿAql    (* عقل - drop fifth mutaḥarrik: mufāʿalatun → mufāʿlatun *)
+  | Shamm.  (* شمّ - partial quiescence of second mutaḥarrik: metrically = iḍmār *)
 
 (** ** Decidable Equality for Zihaf *)
 
@@ -2920,6 +2921,28 @@ Example iḍmār_counterexample :
   apply_iḍmār mustafilun = None.
 Proof. reflexivity. Qed.
 
+(** Shamm (شمّ): partially quiesce the 2nd letter (index 1).
+    Traditionally a phonetic distinction from iḍmār — the vowel is
+    "tasted" (mushamma) rather than fully suppressed. At the syllable-weight
+    level the effect is identical to iḍmār: Mutaharrik → Sakin at index 1. *)
+
+Definition apply_shamm (p : pattern) : option pattern :=
+  let ls := pattern_to_letters p in
+  match nth_error ls 1 with
+  | Some Mutaharrik => Some (letters_to_pattern (replace_at 1 Sakin ls))
+  | _ => None
+  end.
+
+(** Shamm on mutafailun: same metrical result as iḍmār. *)
+Example shamm_mutafailun :
+  apply_shamm mutafailun = Some [Long; Long; Short; Long].
+Proof. reflexivity. Qed.
+
+(** Counterexample: shamm fails when 2nd letter is sākin *)
+Example shamm_counterexample :
+  apply_shamm mustafilun = None.
+Proof. reflexivity. Qed.
+
 (** ʿAql (عقل): delete 5th letter (index 4), which must be mutaḥarrik.
     Applies to mufāʿalatun where the 5th letter is mutaḥarrik. *)
 
@@ -3037,7 +3060,7 @@ Proof. reflexivity. Qed.
 
 (** ** Variation Enumeration *)
 
-Definition all_zihaf : list zihaf := [Khabn; Tayy; Qabḍ; Kaff; Waqṣ; ʿAṣb; Iḍmār; ʿAql].
+Definition all_zihaf : list zihaf := [Khabn; Tayy; Qabḍ; Kaff; Waqṣ; ʿAṣb; Iḍmār; ʿAql; Shamm].
 Definition all_ʿilla : list ʿilla := [Qaṭʿ; Qaṣr; Ḥadhf; Tasbīgh; Batr; Qaṭf; Tarfīl].
 
 Lemma all_zihaf_complete : forall z : zihaf, In z all_zihaf.
@@ -3051,6 +3074,7 @@ Proof.
   - right. right. right. right. right. left. reflexivity.
   - right. right. right. right. right. right. left. reflexivity.
   - right. right. right. right. right. right. right. left. reflexivity.
+  - right. right. right. right. right. right. right. right. left. reflexivity.
 Qed.
 
 Lemma all_ʿilla_complete : forall i : ʿilla, In i all_ʿilla.
@@ -3065,7 +3089,7 @@ Proof.
   - right. right. right. right. right. right. left. reflexivity.
 Qed.
 
-Lemma all_zihaf_length : length all_zihaf = 8.
+Lemma all_zihaf_length : length all_zihaf = 9.
 Proof. reflexivity. Qed.
 
 Lemma all_ʿilla_length : length all_ʿilla = 7.
@@ -3102,11 +3126,11 @@ Proof.
 Qed.
 
 (** Witness: 8 zihaf types *)
-Example all_zihaf_length_witness : length all_zihaf = 8.
+Example all_zihaf_length_witness : length all_zihaf = 9.
 Proof. reflexivity. Qed.
 
-(** Example: not 7 *)
-Example all_zihaf_length_example : length all_zihaf <> 7.
+(** Example: not 8 *)
+Example all_zihaf_length_example : length all_zihaf <> 8.
 Proof. discriminate. Qed.
 
 (** Counterexample: 5 ʿilla types, not 8 *)
@@ -3121,7 +3145,7 @@ Proof. reflexivity. Qed.
 Example all_ʿilla_length_example : length all_ʿilla <> 5.
 Proof. discriminate. Qed.
 
-(** Counterexample: 8 zihaf types, not 7 *)
+(** Counterexample: 9 zihaf types, not 7 *)
 Example all_ʿilla_length_counterexample : length all_zihaf <> 7.
 Proof. discriminate. Qed.
 
@@ -3246,6 +3270,7 @@ Definition zihaf_applies_to (z : zihaf) (f : foot) : bool :=
          | ʿAṣb => apply_ʿaṣb
          | Iḍmār => apply_iḍmār
          | ʿAql => apply_ʿaql
+         | Shamm => apply_shamm
          end) (foot_pattern f) with
   | Some _ => true
   | None => false
@@ -3301,6 +3326,12 @@ Example ʿaql_applicability :
     [Mustafilun; Mafulatu; Mutafailun; Mufaalatun].
 Proof. reflexivity. Qed.
 
+(** Shamm applies to feet whose 2nd letter is mutaḥarrik (same as iḍmār). *)
+Example shamm_applicability :
+  filter (zihaf_applies_to Shamm) all_feet =
+    [Faulun; Mafailun; Mutafailun; Mufaalatun].
+Proof. reflexivity. Qed.
+
 (** Witness: every simple zihāf applies to at least one foot. *)
 Lemma every_zihaf_has_target : forall z : zihaf,
   exists f, zihaf_applies_to z f = true.
@@ -3314,6 +3345,7 @@ Proof.
   - exists Mufaalatun. reflexivity.
   - exists Mutafailun. reflexivity.
   - exists Mufaalatun. reflexivity.
+  - exists Mutafailun. reflexivity.
 Qed.
 
 (** Counterexample: no zihāf applies to all 8 feet. *)
@@ -3508,6 +3540,14 @@ Proof.
   injection H as Hp; subst p; reflexivity.
 Qed.
 
+(** Shamm reduces syllable count by 1 on all applicable feet (same as iḍmār). *)
+Lemma shamm_reduces_count : forall f p,
+  apply_shamm (foot_pattern f) = Some p -> S (length p) = foot_length f.
+Proof.
+  intros f p H. destruct f; simpl in H; try discriminate;
+  injection H as Hp; subst p; reflexivity.
+Qed.
+
 (** Witness: khabn on mustafilun preserves 4-syllable count *)
 Example khabn_count_witness :
   exists p, apply_khabn mustafilun = Some p /\ length p = 4.
@@ -3540,14 +3580,17 @@ Definition apply_zihaf (z : zihaf) : pattern -> option pattern :=
   | ʿAṣb => apply_ʿaṣb
   | Iḍmār => apply_iḍmār
   | ʿAql => apply_ʿaql
+  | Shamm => apply_shamm
   end.
 
 (** The claim "no variation produces a canonical foot" is ALMOST true.
-    There are exactly two exceptions:
+    There are exactly three exceptions:
     - ʿaṣb on mufāʿalatun produces mafāʿīlun. This is well-known in the
       tradition — it is why ʿaṣb on Wāfir yields a Hazaj-like pattern.
     - iḍmār on mutafāʿilun produces mustafʿilun. This is the classical
       relationship between Kāmil and Rajaz.
+    - shamm on mutafāʿilun produces mustafʿilun. Metrically identical
+      to iḍmār; the distinction is phonetic only.
 
     We prove the claim for all other (zihāf, foot) pairs exhaustively. *)
 
@@ -3561,17 +3604,24 @@ Example iḍmār_mutafailun_is_mustafilun :
   apply_iḍmār mutafailun = Some mustafilun.
 Proof. reflexivity. Qed.
 
+(** Exception 3: shamm on mutafailun yields mustafilun's pattern. *)
+Example shamm_mutafailun_is_mustafilun :
+  apply_shamm mutafailun = Some mustafilun.
+Proof. reflexivity. Qed.
+
 (** For all other applicable (zihāf, foot) pairs, the result is not a foot. *)
 Lemma zihaf_no_foot_except_known : forall z f p,
   apply_zihaf z (foot_pattern f) = Some p ->
-  (z = ʿAṣb /\ f = Mufaalatun) \/ (z = Iḍmār /\ f = Mutafailun) \/ is_foot p = false.
+  (z = ʿAṣb /\ f = Mufaalatun) \/ (z = Iḍmār /\ f = Mutafailun) \/
+  (z = Shamm /\ f = Mutafailun) \/ is_foot p = false.
 Proof.
   intros z f p H.
   destruct z, f; simpl in H; try discriminate;
   injection H as Hp; subst p;
   first [ left; split; reflexivity
         | right; left; split; reflexivity
-        | right; right; reflexivity ].
+        | right; right; left; split; reflexivity
+        | right; right; right; reflexivity ].
 Qed.
 
 (** Witness: khabn on mustafilun gives [Short;Long;Short;Long], not a foot *)
@@ -3594,6 +3644,11 @@ Proof. exists mafailun. split; reflexivity. Qed.
 (** Counterexample: iḍmār on mutafailun IS a foot *)
 Example zihaf_foot_counterexample_iḍmār :
   exists p, apply_iḍmār mutafailun = Some p /\ is_foot p = true.
+Proof. exists mustafilun. split; reflexivity. Qed.
+
+(** Counterexample: shamm on mutafailun IS a foot *)
+Example zihaf_foot_counterexample_shamm :
+  exists p, apply_shamm mutafailun = Some p /\ is_foot p = true.
 Proof. exists mustafilun. split; reflexivity. Qed.
 
 (** End of Section 6: Variation Rules *)
