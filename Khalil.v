@@ -363,14 +363,22 @@ Fixpoint pattern_to_letters (p : pattern) : letter_seq :=
 
 (** Recover syllable weights from a letter sequence: each mutaḥarrik
     followed by sākin is Long; a mutaḥarrik followed by another
-    mutaḥarrik (or at end) is Short. *)
+    mutaḥarrik (or at end) is Short. Returns None on orphan sākin. *)
 
-Fixpoint letters_to_pattern (ls : letter_seq) : pattern :=
+Fixpoint letters_to_pattern (ls : letter_seq) : option pattern :=
   match ls with
-  | [] => []
-  | Mutaharrik :: Sakin :: rest => Long :: letters_to_pattern rest
-  | Mutaharrik :: rest => Short :: letters_to_pattern rest
-  | Sakin :: rest => letters_to_pattern rest  (* orphan sākin: skip *)
+  | [] => Some []
+  | Mutaharrik :: Sakin :: rest =>
+      match letters_to_pattern rest with
+      | Some p => Some (Long :: p)
+      | None => None
+      end
+  | Mutaharrik :: rest =>
+      match letters_to_pattern rest with
+      | Some p => Some (Short :: p)
+      | None => None
+      end
+  | Sakin :: _ => None
   end.
 
 (** ** Round-trip correctness *)
@@ -415,7 +423,7 @@ Proof.
 Qed.
 
 Lemma pattern_letters_roundtrip : forall p : pattern,
-  letters_to_pattern (pattern_to_letters p) = p.
+  letters_to_pattern (pattern_to_letters p) = Some p.
 Proof.
   induction p as [|w p' IH].
   - reflexivity.
@@ -424,13 +432,21 @@ Proof.
       change (pattern_to_letters (Short :: p'))
         with (Mutaharrik :: pattern_to_letters p').
       destruct (pattern_to_letters p') as [|l ls] eqn:E.
-      * simpl. f_equal. simpl in IH. exact IH.
-      * assert (Hl : l = Mutaharrik) by (exact (pattern_to_letters_hd _ _ _ E)).
-        subst l. simpl. f_equal. exact IH.
+      * (* pattern_to_letters p' = [] → IH: Some [] = Some p' *)
+        simpl. simpl in IH. injection IH as IH'. subst p'. reflexivity.
+      * (* pattern_to_letters p' = l :: ls → IH: letters_to_pattern (l :: ls) = Some p' *)
+        assert (Hl : l = Mutaharrik) by (exact (pattern_to_letters_hd _ _ _ E)).
+        subst l.
+        change (letters_to_pattern (Mutaharrik :: Mutaharrik :: ls))
+          with (match letters_to_pattern (Mutaharrik :: ls) with
+                | Some p => Some (Short :: p)
+                | None => None
+                end).
+        rewrite IH. reflexivity.
     + (* Long *)
       change (pattern_to_letters (Long :: p'))
         with (Mutaharrik :: Sakin :: pattern_to_letters p').
-      simpl. f_equal. exact IH.
+      simpl. rewrite IH. reflexivity.
 Qed.
 
 (** ** Letter-level position helpers *)
@@ -1532,17 +1548,17 @@ Proof. discriminate. Qed.
 
 (** Witness: round-trip on faulun *)
 Example faulun_roundtrip_witness :
-  letters_to_pattern faulun_letters = faulun.
+  letters_to_pattern faulun_letters = Some faulun.
 Proof. reflexivity. Qed.
 
 (** Example: round-trip on mutafailun *)
 Example mutafailun_roundtrip_example :
-  letters_to_pattern mutafailun_letters = mutafailun.
+  letters_to_pattern mutafailun_letters = Some mutafailun.
 Proof. reflexivity. Qed.
 
-(** Counterexample: raw letter sequence without proper structure *)
+(** Counterexample: orphan sākin returns None *)
 Example letters_roundtrip_counterexample :
-  letters_to_pattern [Sakin; Sakin] = [].
+  letters_to_pattern [Sakin; Sakin] = None.
 Proof. reflexivity. Qed.
 
 (** ** Sākin Position Witnesses *)
@@ -2691,7 +2707,7 @@ Proof. eexists. reflexivity. Qed.
 Definition apply_khabn (p : pattern) : option pattern :=
   let ls := pattern_to_letters p in
   match nth_error ls 1 with
-  | Some Sakin => Some (letters_to_pattern (delete_at 1 ls))
+  | Some Sakin => letters_to_pattern (delete_at 1 ls)
   | _ => None
   end.
 
@@ -2699,7 +2715,7 @@ Definition apply_khabn (p : pattern) : option pattern :=
 Definition apply_tayy (p : pattern) : option pattern :=
   let ls := pattern_to_letters p in
   match nth_error ls 3 with
-  | Some Sakin => Some (letters_to_pattern (delete_at 3 ls))
+  | Some Sakin => letters_to_pattern (delete_at 3 ls)
   | _ => None
   end.
 
@@ -2707,7 +2723,7 @@ Definition apply_tayy (p : pattern) : option pattern :=
 Definition apply_qabḍ (p : pattern) : option pattern :=
   let ls := pattern_to_letters p in
   match nth_error ls 4 with
-  | Some Sakin => Some (letters_to_pattern (delete_at 4 ls))
+  | Some Sakin => letters_to_pattern (delete_at 4 ls)
   | _ => None
   end.
 
@@ -2715,7 +2731,7 @@ Definition apply_qabḍ (p : pattern) : option pattern :=
 Definition apply_kaff (p : pattern) : option pattern :=
   let ls := pattern_to_letters p in
   match nth_error ls 6 with
-  | Some Sakin => Some (letters_to_pattern (delete_at 6 ls))
+  | Some Sakin => letters_to_pattern (delete_at 6 ls)
   | _ => None
   end.
 
@@ -2723,7 +2739,7 @@ Definition apply_kaff (p : pattern) : option pattern :=
 Definition apply_waqṣ (p : pattern) : option pattern :=
   let ls := pattern_to_letters p in
   match nth_error ls 1 with
-  | Some Mutaharrik => Some (letters_to_pattern (delete_at 1 ls))
+  | Some Mutaharrik => letters_to_pattern (delete_at 1 ls)
   | _ => None
   end.
 
@@ -2731,7 +2747,7 @@ Definition apply_waqṣ (p : pattern) : option pattern :=
 Definition apply_ʿaṣb (p : pattern) : option pattern :=
   let ls := pattern_to_letters p in
   match nth_error ls 4 with
-  | Some Mutaharrik => Some (letters_to_pattern (replace_at 4 Sakin ls))
+  | Some Mutaharrik => letters_to_pattern (replace_at 4 Sakin ls)
   | _ => None
   end.
 
@@ -3041,7 +3057,7 @@ Proof. reflexivity. Qed.
 Definition apply_iḍmār (p : pattern) : option pattern :=
   let ls := pattern_to_letters p in
   match nth_error ls 1 with
-  | Some Mutaharrik => Some (letters_to_pattern (replace_at 1 Sakin ls))
+  | Some Mutaharrik => letters_to_pattern (replace_at 1 Sakin ls)
   | _ => None
   end.
 
@@ -3066,7 +3082,7 @@ Proof. reflexivity. Qed.
 Definition apply_shamm (p : pattern) : option pattern :=
   let ls := pattern_to_letters p in
   match nth_error ls 1 with
-  | Some Mutaharrik => Some (letters_to_pattern (replace_at 1 Sakin ls))
+  | Some Mutaharrik => letters_to_pattern (replace_at 1 Sakin ls)
   | _ => None
   end.
 
@@ -3086,7 +3102,7 @@ Proof. reflexivity. Qed.
 Definition apply_ʿaql (p : pattern) : option pattern :=
   let ls := pattern_to_letters p in
   match nth_error ls 4 with
-  | Some Mutaharrik => Some (letters_to_pattern (delete_at 4 ls))
+  | Some Mutaharrik => letters_to_pattern (delete_at 4 ls)
   | _ => None
   end.
 
@@ -3439,28 +3455,36 @@ Example waqṣ_applicability :
     [Faulun; Mafailun; Mutafailun; Mufaalatun].
 Proof. reflexivity. Qed.
 
-(** ʿAṣb applies to feet whose 5th letter is mutaḥarrik. *)
+(** ʿAṣb applies to feet whose 5th letter is mutaḥarrik AND where
+    the M→S replacement yields a well-formed letter sequence.
+    Only mufāʿalatun survives: in other feet, the replacement
+    creates adjacent sākin letters that letters_to_pattern rejects. *)
 Example ʿaṣb_applicability :
   filter (zihaf_applies_to ʿAṣb) all_feet =
-    [Mustafilun; Mafulatu; Mutafailun; Mufaalatun].
+    [Mufaalatun].
 Proof. reflexivity. Qed.
 
-(** Iḍmār applies to feet whose 2nd letter is mutaḥarrik. *)
+(** Iḍmār applies to feet whose 2nd letter is mutaḥarrik AND where
+    the M→S replacement yields a well-formed letter sequence.
+    Only mutafāʿilun survives. *)
 Example iḍmār_applicability :
   filter (zihaf_applies_to Iḍmār) all_feet =
-    [Faulun; Mafailun; Mutafailun; Mufaalatun].
+    [Mutafailun].
 Proof. reflexivity. Qed.
 
-(** ʿAql applies to feet whose 5th letter is mutaḥarrik. *)
+(** ʿAql applies to feet whose 5th letter is mutaḥarrik AND where
+    deleting it yields a well-formed letter sequence. *)
 Example ʿaql_applicability :
   filter (zihaf_applies_to ʿAql) all_feet =
-    [Mustafilun; Mafulatu; Mutafailun; Mufaalatun].
+    [Mustafilun; Mutafailun; Mufaalatun].
 Proof. reflexivity. Qed.
 
-(** Shamm applies to feet whose 2nd letter is mutaḥarrik (same as iḍmār). *)
+(** Shamm applies to feet whose 2nd letter is mutaḥarrik AND where
+    the M→S replacement yields a well-formed letter sequence
+    (same as iḍmār). *)
 Example shamm_applicability :
   filter (zihaf_applies_to Shamm) all_feet =
-    [Faulun; Mafailun; Mutafailun; Mufaalatun].
+    [Mutafailun].
 Proof. reflexivity. Qed.
 
 (** Witness: every simple zihāf applies to at least one foot. *)
