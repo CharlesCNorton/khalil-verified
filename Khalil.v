@@ -85,6 +85,14 @@ Proof.
   - intros H. rewrite H. destruct w2; reflexivity.
 Qed.
 
+(** Reflection: weight_eqb decides equality *)
+Lemma weight_eqb_reflect : forall w1 w2, Bool.reflect (w1 = w2) (weight_eqb w1 w2).
+Proof.
+  intros w1 w2. destruct (weight_eqb w1 w2) eqn:E.
+  - apply ReflectT. apply weight_eqb_eq. exact E.
+  - apply ReflectF. intros H. subst. destruct w2; discriminate.
+Qed.
+
 (** Witness: weight_eqb Long Long = true *)
 Example weight_eqb_witness : weight_eqb Long Long = true.
 Proof.
@@ -168,6 +176,15 @@ Proof.
     split.
     + intros [H1 H2]. rewrite H1, H2. reflexivity.
     + intros H. injection H as H1 H2. split; assumption.
+Qed.
+
+(** Reflection: pattern_eqb decides equality *)
+Lemma pattern_eqb_reflect : forall p1 p2, Bool.reflect (p1 = p2) (pattern_eqb p1 p2).
+Proof.
+  intros p1 p2. destruct (pattern_eqb p1 p2) eqn:E.
+  - apply ReflectT. apply pattern_eqb_eq. exact E.
+  - apply ReflectF. intros H. subst.
+    rewrite (proj2 (pattern_eqb_eq p2 p2) eq_refl) in E. discriminate.
 Qed.
 
 (** Witness: pattern_eqb [Long] [Long] = true *)
@@ -364,6 +381,37 @@ Proof.
   intros p l ls H. destruct p as [|w p'].
   - simpl in H. discriminate.
   - destruct w; simpl in H; injection H as H1 _; symmetry; exact H1.
+Qed.
+
+(** ** Well-Formed Letter Sequences *)
+
+(** A well-formed letter sequence has no orphan sākin: every sākin is
+    immediately preceded by a mutaḥarrik. Equivalently, no sākin appears
+    at the start or immediately after another sākin. *)
+
+Fixpoint wf_letter_seq (ls : letter_seq) : bool :=
+  match ls with
+  | [] => true
+  | Sakin :: _ => false
+  | Mutaharrik :: Sakin :: rest => wf_letter_seq rest
+  | Mutaharrik :: rest => wf_letter_seq rest
+  end.
+
+(** pattern_to_letters always produces well-formed letter sequences. *)
+Lemma pattern_to_letters_wf : forall p : pattern,
+  wf_letter_seq (pattern_to_letters p) = true.
+Proof.
+  induction p as [|w p' IH].
+  - reflexivity.
+  - destruct w; simpl.
+    + (* Short: emits [Mutaharrik] ++ rest *)
+      destruct (pattern_to_letters p') as [|l ls] eqn:E.
+      * simpl. reflexivity.
+      * assert (Hl : l = Mutaharrik).
+        { exact (pattern_to_letters_hd _ _ _ E). }
+        subst l. simpl. exact IH.
+    + (* Long: emits [Mutaharrik; Sakin] ++ rest *)
+      exact IH.
 Qed.
 
 Lemma pattern_letters_roundtrip : forall p : pattern,
@@ -995,8 +1043,8 @@ Definition failatun_blocks : list block := [BlkWatadMafruq; BlkSababKhafif; BlkS
 (** mafʿūlātu (- - - u) = sabab khafīf + sabab khafīf + watad mafrūq *)
 Definition mafulatu_blocks : list block := [BlkSababKhafif; BlkSababKhafif; BlkWatadMafruq].
 
-(** mutafāʿilun (u u - u -) = sabab thaqīl + watad mafrūq + sabab khafīf *)
-Definition mutafailun_blocks : list block := [BlkSababThaqil; BlkWatadMafruq; BlkSababKhafif].
+(** mutafāʿilun (u u - u -) = sabab thaqīl + sabab khafīf + watad majmūʿ *)
+Definition mutafailun_blocks : list block := [BlkSababThaqil; BlkSababKhafif; BlkWatadMajmu].
 
 (** mufāʿalatun (u - u u -) = watad majmūʿ + sabab thaqīl + sabab khafīf *)
 Definition mufaalatun_blocks : list block := [BlkWatadMajmu; BlkSababThaqil; BlkSababKhafif].
@@ -1071,8 +1119,8 @@ Proof. discriminate. Qed.
 (** ** Canonical Decomposition *)
 
 (** Khalil's convention: the canonical decomposition of each foot is the
-    one given by foot_blocks. It is "watad-first where possible" — the
-    watad appears at the earliest position consistent with the pattern.
+    one given by foot_blocks. The watad placement follows the traditional
+    analysis of each foot's mnemonic word.
     We define block-list boolean equality and use it to check canonicity. *)
 
 Fixpoint block_list_eqb (l1 l2 : list block) : bool :=
@@ -1512,6 +1560,55 @@ Proof. reflexivity. Qed.
 (** Counterexample: asking for 10th sākin in a short foot returns None *)
 Example sakin_pos_counterexample :
   nth_sakin_pos 10 faulun_letters 0 = None.
+Proof. reflexivity. Qed.
+
+(** ** Full Pattern Space *)
+
+(** Generate all weight patterns of a given length. *)
+
+Fixpoint all_patterns (n : nat) : list pattern :=
+  match n with
+  | 0 => [[]]
+  | S n' =>
+      let ps := all_patterns n' in
+      map (cons Short) ps ++ map (cons Long) ps
+  end.
+
+(** Total pattern space for foot-length patterns (3, 4, or 5 syllables). *)
+Definition foot_length_patterns : list pattern :=
+  all_patterns 3 ++ all_patterns 4 ++ all_patterns 5.
+
+(** The space has exactly 56 = 8 + 16 + 32 patterns. *)
+Lemma all_patterns_3_length : length (all_patterns 3) = 8.
+Proof. reflexivity. Qed.
+
+Lemma all_patterns_4_length : length (all_patterns 4) = 16.
+Proof. reflexivity. Qed.
+
+Lemma all_patterns_5_length : length (all_patterns 5) = 32.
+Proof. reflexivity. Qed.
+
+Lemma foot_length_patterns_count : length foot_length_patterns = 56.
+Proof. reflexivity. Qed.
+
+(** All 8 canonical feet are in this space. *)
+Lemma feet_in_pattern_space : forall f : foot,
+  In (foot_pattern f) foot_length_patterns.
+Proof.
+  intros f. destruct f; simpl;
+  unfold foot_length_patterns, all_patterns;
+  simpl; repeat (try (left; reflexivity); right).
+Qed.
+
+(** Khalil selected 8 of the 56 possible patterns. *)
+Lemma khalil_selection_ratio :
+  length (map foot_pattern all_feet) = 8 /\
+  length foot_length_patterns = 56.
+Proof. split; reflexivity. Qed.
+
+(** Exactly 8 of the 56 foot-length patterns are recognized as feet. *)
+Lemma foot_recognition_count :
+  length (filter is_foot foot_length_patterns) = 8.
 Proof. reflexivity. Qed.
 
 (** End of Section 3: The Eight Feet *)
@@ -2175,6 +2272,18 @@ Example circles_partition_counterexample :
   length (concat (map circle_meters all_circles)) <> 15.
 Proof. discriminate. Qed.
 
+(** No meter appears in two circles' lists *)
+Lemma circles_partition_nodup :
+  NoDup (concat (map circle_meters all_circles)).
+Proof.
+  unfold all_circles. simpl.
+  repeat (constructor;
+    [simpl; intros H;
+     repeat destruct H as [H | H]; try discriminate; try contradiction
+    | ]).
+  constructor.
+Qed.
+
 (** ** Circle Recognition from Meter *)
 
 Definition is_in_circle (m : meter) (c : circle) : bool :=
@@ -2276,6 +2385,61 @@ Proof. reflexivity. Qed.
 Example rotate_not_identity : rotate 1 faulun <> faulun.
 Proof. discriminate. Qed.
 
+(** Rotation composition: rotate m after rotate n = rotate (n + m),
+    when (n + m) <= length p. *)
+Lemma skipn_skipn : forall {A : Type} (n m : nat) (l : list A),
+  skipn m (skipn n l) = skipn (n + m) l.
+Proof.
+  intros A n. induction n as [|n' IH]; intros m l.
+  - reflexivity.
+  - destruct l as [|a l'].
+    + simpl. rewrite skipn_nil. destruct (n' + m); reflexivity.
+    + simpl. exact (IH m l').
+Qed.
+
+Lemma firstn_skipn_comm : forall {A : Type} (n m : nat) (l : list A),
+  n + m <= length l ->
+  firstn n l ++ firstn m (skipn n l) = firstn (n + m) l.
+Proof.
+  intros A n. induction n as [|n' IH]; intros m l Hle.
+  - reflexivity.
+  - destruct l as [|a l']; simpl in Hle; try lia.
+    simpl. f_equal. apply IH. lia.
+Qed.
+
+Lemma skipn_app_le : forall {A : Type} (n : nat) (l1 l2 : list A),
+  n <= length l1 ->
+  skipn n (l1 ++ l2) = skipn n l1 ++ l2.
+Proof.
+  intros A n. induction n as [|n' IH]; intros l1 l2 Hle.
+  - reflexivity.
+  - destruct l1 as [|a l1']; simpl in Hle; try lia.
+    simpl. apply IH. lia.
+Qed.
+
+Lemma firstn_app_le : forall {A : Type} (n : nat) (l1 l2 : list A),
+  n <= length l1 ->
+  firstn n (l1 ++ l2) = firstn n l1.
+Proof.
+  intros A n. induction n as [|n' IH]; intros l1 l2 Hle.
+  - reflexivity.
+  - destruct l1 as [|a l1']; simpl in Hle; try lia.
+    simpl. f_equal. apply IH. lia.
+Qed.
+
+Lemma rotate_add : forall (n m : nat) (p : pattern),
+  n <= length p -> n + m <= length p ->
+  rotate m (rotate n p) = rotate (n + m) p.
+Proof.
+  intros n m p Hn Hnm. unfold rotate.
+  rewrite skipn_app_le by (rewrite skipn_length; lia).
+  rewrite firstn_app_le by (rewrite skipn_length; lia).
+  rewrite skipn_skipn.
+  rewrite <- app_assoc.
+  f_equal.
+  apply firstn_skipn_comm. exact Hnm.
+Qed.
+
 (** Witness: rotation preserves length *)
 Example rotate_length_witness :
   length (rotate 2 mafailun) = length mafailun.
@@ -2368,6 +2532,36 @@ Lemma mualifa_foot_closure :
   rotate 2 mufaalatun = mutafailun.
 Proof. repeat split; reflexivity. Qed.
 
+(** *** Rotation Exhaustion: No Other Offsets Produce Feet *)
+
+(** For each generator, every rotation offset either produces one of the
+    circle's feet or produces a non-foot pattern. Since rotation by n and
+    by n + length give the same result, we only check 0..length-1. *)
+
+(** Trisyllabic generator faulun: only offsets 0 and 2 give feet. *)
+Lemma faulun_rotation_exhaustive :
+  is_foot (rotate 0 faulun) = true /\
+  is_foot (rotate 1 faulun) = false /\
+  is_foot (rotate 2 faulun) = true.
+Proof. repeat split; reflexivity. Qed.
+
+(** Quadrisyllabic generator mafailun: all 4 offsets give feet. *)
+Lemma mafailun_rotation_exhaustive :
+  is_foot (rotate 0 mafailun) = true /\
+  is_foot (rotate 1 mafailun) = true /\
+  is_foot (rotate 2 mafailun) = true /\
+  is_foot (rotate 3 mafailun) = true.
+Proof. repeat split; reflexivity. Qed.
+
+(** Pentasyllabic generator mufaalatun: only offsets 0 and 2 give feet. *)
+Lemma mufaalatun_rotation_exhaustive :
+  is_foot (rotate 0 mufaalatun) = true /\
+  is_foot (rotate 1 mufaalatun) = false /\
+  is_foot (rotate 2 mufaalatun) = true /\
+  is_foot (rotate 3 mufaalatun) = false /\
+  is_foot (rotate 4 mufaalatun) = false.
+Proof. repeat split; reflexivity. Qed.
+
 (** *** Cross-Circle Non-Relation *)
 
 (** Feet in different circles are NOT related by rotation. *)
@@ -2427,7 +2621,9 @@ Inductive zihaf : Type :=
   | Qabḍ     (* قبض - drop fifth quiescent: mafāʿīlun → mafāʿlun *)
   | Kaff     (* كف - drop seventh quiescent: mafāʿīlun → mafāʿīlu *)
   | Waqṣ     (* وقص - drop second: mutafāʿilun → mufāʿilun *)
-  | ʿAṣb.    (* عصب - make fifth quiescent: mufāʿalatun → mufāʿaltun *)
+  | ʿAṣb    (* عصب - make fifth quiescent: mufāʿalatun → mufāʿaltun *)
+  | Iḍmār   (* إضمار - make second quiescent: mutafāʿilun → mustafʿilun *)
+  | ʿAql.   (* عقل - drop fifth mutaḥarrik: mufāʿalatun → mufāʿlatun *)
 
 (** ** Decidable Equality for Zihaf *)
 
@@ -2453,7 +2649,9 @@ Inductive ʿilla : Type :=
   | Qaṣr     (* قصر - shorten final long vowel *)
   | Ḥadhf    (* حذف - drop final sabab *)
   | Tasbīgh  (* تسبيغ - add consonant to final sabab *)
-  | Batr.    (* بتر - combine Ḥadhf and Qaṭʿ *)
+  | Batr     (* بتر - combine Ḥadhf and Qaṭʿ *)
+  | Qaṭf     (* قطف - combine ʿaṣb and Ḥadhf: mufāʿalatun → faʿūlun *)
+  | Tarfīl.  (* ترفيل - add sabab khafīf after final watad *)
 
 (** ** Decidable Equality for ʿIlla *)
 
@@ -2588,6 +2786,41 @@ Definition apply_batr (p : pattern) : option pattern :=
   | None => None
   end.
 
+(** Qaṭf: compose ʿAṣb then Ḥadhf *)
+Definition apply_qaṭf (p : pattern) : option pattern :=
+  match apply_ʿaṣb p with
+  | Some p' => apply_ḥadhf p'
+  | None => None
+  end.
+
+(** Tarfīl: append a Long syllable (sabab khafīf) after the pattern *)
+Definition apply_tarfīl (p : pattern) : option pattern :=
+  match p with
+  | [] => None
+  | _ => Some (p ++ [Long])
+  end.
+
+(** Qaṭf on mufaalatun: ʿaṣb gives [Short;Long;Long;Long],
+    then ḥadhf drops final: [Short;Long;Long] = faulun. *)
+Example qaṭf_mufaalatun :
+  apply_qaṭf mufaalatun = Some [Short; Long; Long].
+Proof. reflexivity. Qed.
+
+(** Counterexample: qaṭf fails when ʿaṣb fails *)
+Example qaṭf_counterexample :
+  apply_qaṭf mafailun = None.
+Proof. reflexivity. Qed.
+
+(** Tarfīl on failun: append Long → [Long; Short; Long; Long] = failatun. *)
+Example tarfīl_failun :
+  apply_tarfīl failun = Some [Long; Short; Long; Long].
+Proof. reflexivity. Qed.
+
+(** Counterexample: tarfīl fails on empty *)
+Example tarfīl_counterexample :
+  apply_tarfīl [] = None.
+Proof. reflexivity. Qed.
+
 (** ** Example: Khabn on Mustafilun *)
 
 (** mustafilun = [Long; Long; Short; Long], letters = [M;S;M;S;M;M;S].
@@ -2664,8 +2897,6 @@ Proof. reflexivity. Qed.
 Example ḥadhf_counterexample : apply_ḥadhf [] = None.
 Proof. reflexivity. Qed.
 
-(** ** Additional Simple Zihāf: Iḍmār *)
-
 (** Iḍmār (إضمار): make 2nd letter (index 1) quiescent (Mutaharrik → Sakin).
     Applies when the 2nd letter is mutaḥarrik. *)
 
@@ -2687,6 +2918,28 @@ Proof. reflexivity. Qed.
 (** Counterexample: iḍmār fails when 2nd letter is sākin *)
 Example iḍmār_counterexample :
   apply_iḍmār mustafilun = None.
+Proof. reflexivity. Qed.
+
+(** ʿAql (عقل): delete 5th letter (index 4), which must be mutaḥarrik.
+    Applies to mufāʿalatun where the 5th letter is mutaḥarrik. *)
+
+Definition apply_ʿaql (p : pattern) : option pattern :=
+  let ls := pattern_to_letters p in
+  match nth_error ls 4 with
+  | Some Mutaharrik => Some (letters_to_pattern (delete_at 4 ls))
+  | _ => None
+  end.
+
+(** ʿAql on mufaalatun: delete 5th letter (mutaḥarrik at index 4).
+    mufaalatun letters = [M;M;S;M;M;M;S]. Delete index 4 (M):
+    [M;M;S;M;M;S]. Re-syllabified: [Short; Long; Short; Long]. *)
+Example ʿaql_mufaalatun :
+  apply_ʿaql mufaalatun = Some [Short; Long; Short; Long].
+Proof. reflexivity. Qed.
+
+(** Counterexample: ʿaql fails when 5th letter is sākin *)
+Example ʿaql_counterexample :
+  apply_ʿaql mafailun = None.
 Proof. reflexivity. Qed.
 
 (** ** Compound Zihāf (Zihāf Murakkab) *)
@@ -2784,8 +3037,8 @@ Proof. reflexivity. Qed.
 
 (** ** Variation Enumeration *)
 
-Definition all_zihaf : list zihaf := [Khabn; Tayy; Qabḍ; Kaff; Waqṣ; ʿAṣb].
-Definition all_ʿilla : list ʿilla := [Qaṭʿ; Qaṣr; Ḥadhf; Tasbīgh; Batr].
+Definition all_zihaf : list zihaf := [Khabn; Tayy; Qabḍ; Kaff; Waqṣ; ʿAṣb; Iḍmār; ʿAql].
+Definition all_ʿilla : list ʿilla := [Qaṭʿ; Qaṣr; Ḥadhf; Tasbīgh; Batr; Qaṭf; Tarfīl].
 
 Lemma all_zihaf_complete : forall z : zihaf, In z all_zihaf.
 Proof.
@@ -2796,6 +3049,8 @@ Proof.
   - right. right. right. left. reflexivity.
   - right. right. right. right. left. reflexivity.
   - right. right. right. right. right. left. reflexivity.
+  - right. right. right. right. right. right. left. reflexivity.
+  - right. right. right. right. right. right. right. left. reflexivity.
 Qed.
 
 Lemma all_ʿilla_complete : forall i : ʿilla, In i all_ʿilla.
@@ -2806,21 +3061,23 @@ Proof.
   - right. right. left. reflexivity.
   - right. right. right. left. reflexivity.
   - right. right. right. right. left. reflexivity.
+  - right. right. right. right. right. left. reflexivity.
+  - right. right. right. right. right. right. left. reflexivity.
 Qed.
 
-Lemma all_zihaf_length : length all_zihaf = 6.
+Lemma all_zihaf_length : length all_zihaf = 8.
 Proof. reflexivity. Qed.
 
-Lemma all_ʿilla_length : length all_ʿilla = 5.
+Lemma all_ʿilla_length : length all_ʿilla = 7.
 Proof. reflexivity. Qed.
 
 (** Witness: Khabn in all_zihaf *)
 Example all_zihaf_witness : In Khabn all_zihaf.
 Proof. left. reflexivity. Qed.
 
-(** Example: ʿAṣb (last) in all_zihaf *)
-Example all_zihaf_example : In ʿAṣb all_zihaf.
-Proof. right. right. right. right. right. left. reflexivity. Qed.
+(** Example: ʿAql (last) in all_zihaf *)
+Example all_zihaf_example : In ʿAql all_zihaf.
+Proof. right. right. right. right. right. right. right. left. reflexivity. Qed.
 
 (** Counterexample: incomplete zihaf list fails completeness *)
 Example all_zihaf_counterexample : ~ (forall z : zihaf, In z [Khabn; Tayy]).
@@ -2844,28 +3101,28 @@ Proof.
   destruct H as [H | [H | H]]; try discriminate; contradiction.
 Qed.
 
-(** Witness: 6 zihaf types *)
-Example all_zihaf_length_witness : length all_zihaf = 6.
+(** Witness: 8 zihaf types *)
+Example all_zihaf_length_witness : length all_zihaf = 8.
+Proof. reflexivity. Qed.
+
+(** Example: not 7 *)
+Example all_zihaf_length_example : length all_zihaf <> 7.
+Proof. discriminate. Qed.
+
+(** Counterexample: 5 ʿilla types, not 8 *)
+Example all_zihaf_length_counterexample : length all_ʿilla <> 8.
+Proof. discriminate. Qed.
+
+(** Witness: 7 ʿilla types *)
+Example all_ʿilla_length_witness : length all_ʿilla = 7.
 Proof. reflexivity. Qed.
 
 (** Example: not 5 *)
-Example all_zihaf_length_example : length all_zihaf <> 5.
+Example all_ʿilla_length_example : length all_ʿilla <> 5.
 Proof. discriminate. Qed.
 
-(** Counterexample: 5 ʿilla types, not 6 *)
-Example all_zihaf_length_counterexample : length all_ʿilla <> 6.
-Proof. discriminate. Qed.
-
-(** Witness: 5 ʿilla types *)
-Example all_ʿilla_length_witness : length all_ʿilla = 5.
-Proof. reflexivity. Qed.
-
-(** Example: not 4 *)
-Example all_ʿilla_length_example : length all_ʿilla <> 4.
-Proof. discriminate. Qed.
-
-(** Counterexample: 6 zihaf types, not 5 *)
-Example all_ʿilla_length_counterexample : length all_zihaf <> 5.
+(** Counterexample: 8 zihaf types, not 7 *)
+Example all_ʿilla_length_counterexample : length all_zihaf <> 7.
 Proof. discriminate. Qed.
 
 (** ** Variation Applicability *)
@@ -2987,6 +3244,8 @@ Definition zihaf_applies_to (z : zihaf) (f : foot) : bool :=
          | Kaff => apply_kaff
          | Waqṣ => apply_waqṣ
          | ʿAṣb => apply_ʿaṣb
+         | Iḍmār => apply_iḍmār
+         | ʿAql => apply_ʿaql
          end) (foot_pattern f) with
   | Some _ => true
   | None => false
@@ -3030,6 +3289,18 @@ Example ʿaṣb_applicability :
     [Mustafilun; Mafulatu; Mutafailun; Mufaalatun].
 Proof. reflexivity. Qed.
 
+(** Iḍmār applies to feet whose 2nd letter is mutaḥarrik. *)
+Example iḍmār_applicability :
+  filter (zihaf_applies_to Iḍmār) all_feet =
+    [Faulun; Mafailun; Mutafailun; Mufaalatun].
+Proof. reflexivity. Qed.
+
+(** ʿAql applies to feet whose 5th letter is mutaḥarrik. *)
+Example ʿaql_applicability :
+  filter (zihaf_applies_to ʿAql) all_feet =
+    [Mustafilun; Mafulatu; Mutafailun; Mufaalatun].
+Proof. reflexivity. Qed.
+
 (** Witness: every simple zihāf applies to at least one foot. *)
 Lemma every_zihaf_has_target : forall z : zihaf,
   exists f, zihaf_applies_to z f = true.
@@ -3039,6 +3310,8 @@ Proof.
   - exists Mustafilun. reflexivity.
   - exists Mafailun. reflexivity.
   - exists Mafailun. reflexivity.
+  - exists Mutafailun. reflexivity.
+  - exists Mufaalatun. reflexivity.
   - exists Mutafailun. reflexivity.
   - exists Mufaalatun. reflexivity.
 Qed.
@@ -3151,7 +3424,28 @@ Proof.
   lia.
 Qed.
 
-(** *** Zihāf syllable count properties (exhaustive over feet) *)
+(** Qaṭf reduces syllable count by 2 on all applicable feet. *)
+Lemma qaṭf_reduces_by_two : forall f p,
+  apply_qaṭf (foot_pattern f) = Some p -> S (S (length p)) = foot_length f.
+Proof.
+  intros f p H. destruct f; simpl in H; try discriminate;
+  injection H as Hp; subst p; reflexivity.
+Qed.
+
+(** Tarfīl increases syllable count by 1. *)
+Lemma tarfīl_increases_by_one : forall p p',
+  apply_tarfīl p = Some p' -> length p' = S (length p).
+Proof.
+  induction p as [|w ps IH]; intros p' H; simpl in H.
+  - discriminate.
+  - injection H as Hp. subst p'. simpl.
+    destruct ps as [|w' ps'].
+    + reflexivity.
+    + simpl. f_equal. f_equal.
+      assert (Htmp : apply_tarfīl (w' :: ps') = Some ((w' :: ps') ++ [Long])).
+      { reflexivity. }
+      specialize (IH _ Htmp). simpl in IH. lia.
+Qed.
 
 (** Deleting a sākin letter preserves syllable count on all applicable feet. *)
 Lemma khabn_preserves_count : forall f p,
@@ -3198,6 +3492,22 @@ Proof.
   injection H as Hp; subst p; reflexivity.
 Qed.
 
+(** Iḍmār reduces syllable count by 1 on all applicable feet. *)
+Lemma iḍmār_reduces_count : forall f p,
+  apply_iḍmār (foot_pattern f) = Some p -> S (length p) = foot_length f.
+Proof.
+  intros f p H. destruct f; simpl in H; try discriminate;
+  injection H as Hp; subst p; reflexivity.
+Qed.
+
+(** ʿAql reduces syllable count by 1 on all applicable feet. *)
+Lemma ʿaql_reduces_count : forall f p,
+  apply_ʿaql (foot_pattern f) = Some p -> S (length p) = foot_length f.
+Proof.
+  intros f p H. destruct f; simpl in H; try discriminate;
+  injection H as Hp; subst p; reflexivity.
+Qed.
+
 (** Witness: khabn on mustafilun preserves 4-syllable count *)
 Example khabn_count_witness :
   exists p, apply_khabn mustafilun = Some p /\ length p = 4.
@@ -3228,29 +3538,40 @@ Definition apply_zihaf (z : zihaf) : pattern -> option pattern :=
   | Kaff => apply_kaff
   | Waqṣ => apply_waqṣ
   | ʿAṣb => apply_ʿaṣb
+  | Iḍmār => apply_iḍmār
+  | ʿAql => apply_ʿaql
   end.
 
 (** The claim "no variation produces a canonical foot" is ALMOST true.
-    There is exactly one exception: ʿaṣb on mufāʿalatun produces
-    [Short; Long; Long; Long] = mafāʿīlun. This is well-known in the
-    tradition — it is why ʿaṣb on Wāfir yields a Hazaj-like pattern.
+    There are exactly two exceptions:
+    - ʿaṣb on mufāʿalatun produces mafāʿīlun. This is well-known in the
+      tradition — it is why ʿaṣb on Wāfir yields a Hazaj-like pattern.
+    - iḍmār on mutafāʿilun produces mustafʿilun. This is the classical
+      relationship between Kāmil and Rajaz.
 
     We prove the claim for all other (zihāf, foot) pairs exhaustively. *)
 
-(** The single exception: ʿaṣb on mufaalatun yields mafailun's pattern. *)
+(** Exception 1: ʿaṣb on mufaalatun yields mafailun's pattern. *)
 Example ʿaṣb_mufaalatun_is_mafailun :
   apply_ʿaṣb mufaalatun = Some mafailun.
 Proof. reflexivity. Qed.
 
+(** Exception 2: iḍmār on mutafailun yields mustafilun's pattern. *)
+Example iḍmār_mutafailun_is_mustafilun :
+  apply_iḍmār mutafailun = Some mustafilun.
+Proof. reflexivity. Qed.
+
 (** For all other applicable (zihāf, foot) pairs, the result is not a foot. *)
-Lemma zihaf_no_foot_except_ʿaṣb_mufaalatun : forall z f p,
+Lemma zihaf_no_foot_except_known : forall z f p,
   apply_zihaf z (foot_pattern f) = Some p ->
-  (z = ʿAṣb /\ f = Mufaalatun) \/ is_foot p = false.
+  (z = ʿAṣb /\ f = Mufaalatun) \/ (z = Iḍmār /\ f = Mutafailun) \/ is_foot p = false.
 Proof.
   intros z f p H.
   destruct z, f; simpl in H; try discriminate;
   injection H as Hp; subst p;
-  first [ left; split; reflexivity | right; reflexivity ].
+  first [ left; split; reflexivity
+        | right; left; split; reflexivity
+        | right; right; reflexivity ].
 Qed.
 
 (** Witness: khabn on mustafilun gives [Short;Long;Short;Long], not a foot *)
@@ -3269,6 +3590,11 @@ Proof. split; reflexivity. Qed.
 Example zihaf_foot_counterexample :
   exists p, apply_ʿaṣb mufaalatun = Some p /\ is_foot p = true.
 Proof. exists mafailun. split; reflexivity. Qed.
+
+(** Counterexample: iḍmār on mutafailun IS a foot *)
+Example zihaf_foot_counterexample_iḍmār :
+  exists p, apply_iḍmār mutafailun = Some p /\ is_foot p = true.
+Proof. exists mustafilun. split; reflexivity. Qed.
 
 (** End of Section 6: Variation Rules *)
 
@@ -3565,6 +3891,22 @@ Qed.
 
 Lemma is_prefix_nil : forall p, is_prefix [] p = true.
 Proof. reflexivity. Qed.
+
+(** Transitivity of is_prefix *)
+Lemma is_prefix_trans : forall p1 p2 p3,
+  is_prefix p1 p2 = true -> is_prefix p2 p3 = true -> is_prefix p1 p3 = true.
+Proof.
+  induction p1 as [|w1 p1' IH]; intros p2 p3 H12 H23.
+  - reflexivity.
+  - destruct p2 as [|w2 p2']; simpl in H12; try discriminate.
+    destruct p3 as [|w3 p3']; simpl in H23; try discriminate.
+    apply Bool.andb_true_iff in H12. destruct H12 as [Hw12 Hp12].
+    apply Bool.andb_true_iff in H23. destruct H23 as [Hw23 Hp23].
+    simpl. apply Bool.andb_true_iff. split.
+    + apply weight_eqb_eq in Hw12. apply weight_eqb_eq in Hw23.
+      apply weight_eqb_eq. rewrite Hw12. exact Hw23.
+    + exact (IH _ _ Hp12 Hp23).
+Qed.
 
 (** Witness: is_prefix_refl on faulun *)
 Example is_prefix_refl_witness : is_prefix faulun faulun = true.
