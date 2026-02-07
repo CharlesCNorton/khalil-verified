@@ -1,7 +1,7 @@
 # Khalil-Verified: Outstanding Issues
 
-1. Add missing compound zihāf (khazt and others) to `compound_zihaf` with application functions. (Qaṭf is implemented as ʿilla; khazt and others still missing.)
-2. Add missing ʿilla operations (tathlīth, tadhyīl, ḥadhdhāʾ, and others) to the `ʿilla` type with application functions.
+1. ~~Add missing compound zihāf (khazt and others)~~ **DONE** — all four traditional compound zihāf (khazl, khabl, shakl, naqs) are implemented. "Khazt" was a typo for khazl.
+2. ~~Add missing ʿilla operations~~ **DONE** — added tadhyīl, ḥadhādh, ṣalm, kashf, waqf, tashʿīth (6 new types, 13 total). "Tathlīth" is not a standard ʿilla in any traditional source; "ḥadhdhāʾ" is the adjectival form — the operation is ḥadhādh.
 3. Make `letters_to_pattern` return `option pattern` or otherwise signal an error on orphan sākin instead of silently dropping them. **This is a latent bug — silent data loss in a conversion function can mask errors in variation functions that produce malformed letter sequences. Fix before building more on top of it.**
 4. Wrap `pattern_eqb_eq` as a standard-library `DecidableEq` instance.
 5. Prove `rotate` composes correctly for arbitrary `n` and `m` — `rotate m (rotate n p) = rotate ((m + n) mod length p) p`. (Restricted version `rotate_add` proved with preconditions; full mod version outstanding.)

@@ -2646,13 +2646,19 @@ Example zihaf_eq_dec_counterexample : exists pf, zihaf_eq_dec Khabn Tayy = right
 Proof. eexists. reflexivity. Qed.
 
 Inductive ʿilla : Type :=
-  | Qaṭʿ     (* قطع - drop final consonant of watad *)
+  | Qaṭʿ     (* قطع - drop final consonant of watad majmūʿ, still preceding *)
   | Qaṣr     (* قصر - shorten final long vowel *)
-  | Ḥadhf    (* حذف - drop final sabab *)
-  | Tasbīgh  (* تسبيغ - add consonant to final sabab *)
+  | Ḥadhf    (* حذف - drop final sabab khafīf *)
+  | Tasbīgh  (* تسبيغ - add sākin after final sabab khafīf *)
   | Batr     (* بتر - combine Ḥadhf and Qaṭʿ *)
   | Qaṭf     (* قطف - combine ʿaṣb and Ḥadhf: mufāʿalatun → faʿūlun *)
-  | Tarfīl.  (* ترفيل - add sabab khafīf after final watad *)
+  | Tarfīl   (* ترفيل - add sabab khafīf after final watad majmūʿ *)
+  | Tadhyīl  (* تذييل - add one sākin after final watad majmūʿ *)
+  | Ḥadhādh  (* حذذ - drop entire final watad majmūʿ (3 letters) *)
+  | Ṣalm     (* صلم - drop entire final watad mafrūq (3 letters) *)
+  | Kashf    (* كسف - drop last letter of final watad mafrūq *)
+  | Waqf     (* وقف - still (make sākin) the last letter of watad mafrūq *)
+  | Tashʿīth. (* تشعيث - drop a mutaḥarrik from watad majmūʿ in fāʿilātun *)
 
 (** ** Decidable Equality for ʿIlla *)
 
@@ -2820,6 +2826,137 @@ Proof. reflexivity. Qed.
 (** Counterexample: tarfīl fails on empty *)
 Example tarfīl_counterexample :
   apply_tarfīl [] = None.
+Proof. reflexivity. Qed.
+
+(** Tadhyīl: add one sākin letter after the final watad majmūʿ.
+    At the syllable level, this extends the final Long by one mora,
+    which in practice means the final syllable becomes super-heavy.
+    We model this as appending a Long syllable (the extra sākin
+    merges with the preceding watad's final sākin to form CvCC). *)
+Definition apply_tadhyīl (p : pattern) : option pattern :=
+  match p with
+  | [] => None
+  | _ => Some (p ++ [Long])
+  end.
+
+(** Tadhyīl on failun: append Long → [Long; Short; Long; Long]. *)
+Example tadhyīl_failun :
+  apply_tadhyīl failun = Some [Long; Short; Long; Long].
+Proof. reflexivity. Qed.
+
+(** Counterexample: tadhyīl fails on empty *)
+Example tadhyīl_counterexample :
+  apply_tadhyīl [] = None.
+Proof. reflexivity. Qed.
+
+(** Ḥadhādh: drop the entire final watad majmūʿ (last two syllables
+    of a watad: Short + Long → remove both). We model this as
+    removing the last two syllables. *)
+Fixpoint drop_last_n (n : nat) (p : pattern) : option pattern :=
+  match n with
+  | 0 => Some p
+  | S n' =>
+      match apply_ḥadhf p with
+      | Some p' => drop_last_n n' p'
+      | None => None
+      end
+  end.
+
+Definition apply_ḥadhādh (p : pattern) : option pattern :=
+  drop_last_n 2 p.
+
+(** Ḥadhādh on mutafailun: drop last 2 syllables.
+    mutafailun = [Short; Short; Long; Short; Long] →
+    [Short; Short; Long]. *)
+Example ḥadhādh_mutafailun :
+  apply_ḥadhādh mutafailun = Some [Short; Short; Long].
+Proof. reflexivity. Qed.
+
+(** Counterexample: ḥadhādh fails on single-syllable pattern *)
+Example ḥadhādh_counterexample :
+  apply_ḥadhādh [Long] = None.
+Proof. reflexivity. Qed.
+
+(** Ṣalm: drop the entire final watad mafrūq (last two syllables:
+    Long + Short → remove both). Same mechanics as ḥadhādh but
+    traditionally applies to feet ending in watad mafrūq. *)
+Definition apply_ṣalm (p : pattern) : option pattern :=
+  drop_last_n 2 p.
+
+(** Ṣalm on mafulatu: drop last 2.
+    mafulatu = [Long; Long; Long; Short] → [Long; Long]. *)
+Example ṣalm_mafulatu :
+  apply_ṣalm mafulatu = Some [Long; Long].
+Proof. reflexivity. Qed.
+
+(** Counterexample: ṣalm fails on single-syllable pattern *)
+Example ṣalm_counterexample :
+  apply_ṣalm [Short] = None.
+Proof. reflexivity. Qed.
+
+(** Kashf: drop the last letter of the final watad mafrūq.
+    At the syllable level, the final Short of watad mafrūq
+    (Long; Short) is dropped. We model as dropping the last syllable. *)
+Definition apply_kashf (p : pattern) : option pattern :=
+  apply_ḥadhf p.
+
+(** Kashf on mafulatu: drop last.
+    mafulatu = [Long; Long; Long; Short] → [Long; Long; Long]. *)
+Example kashf_mafulatu :
+  apply_kashf mafulatu = Some [Long; Long; Long].
+Proof. reflexivity. Qed.
+
+(** Counterexample: kashf fails on empty *)
+Example kashf_counterexample :
+  apply_kashf [] = None.
+Proof. reflexivity. Qed.
+
+(** Waqf: make the last mutaḥarrik of watad mafrūq quiescent.
+    At the syllable level, the final Short becomes Long
+    (the vowel is suppressed, making it a closed syllable). *)
+Fixpoint apply_waqf (p : pattern) : option pattern :=
+  match p with
+  | [] => None
+  | [Short] => Some [Long]
+  | [Long] => None  (* already quiescent *)
+  | w :: rest =>
+      match apply_waqf rest with
+      | Some rest' => Some (w :: rest')
+      | None => None
+      end
+  end.
+
+(** Waqf on mafulatu: final Short → Long.
+    mafulatu = [Long; Long; Long; Short] → [Long; Long; Long; Long]. *)
+Example waqf_mafulatu :
+  apply_waqf mafulatu = Some [Long; Long; Long; Long].
+Proof. reflexivity. Qed.
+
+(** Counterexample: waqf fails when last is already Long *)
+Example waqf_counterexample :
+  apply_waqf [Long; Long] = None.
+Proof. reflexivity. Qed.
+
+(** Tashʿīth: drop a mutaḥarrik from the watad majmūʿ within
+    fāʿilātun, effectively turning Short;Long into Long.
+    At the syllable level: delete the Short that precedes a Long
+    in the second position. We model as deleting the 2nd syllable
+    when it is Short and the 3rd is Long. *)
+Definition apply_tashʿīth (p : pattern) : option pattern :=
+  match p with
+  | w1 :: Short :: Long :: rest => Some (w1 :: Long :: rest)
+  | _ => None
+  end.
+
+(** Tashʿīth on failatun: delete 2nd (Short) syllable.
+    failatun = [Long; Short; Long; Long] → [Long; Long; Long]. *)
+Example tashʿīth_failatun :
+  apply_tashʿīth failatun = Some [Long; Long; Long].
+Proof. reflexivity. Qed.
+
+(** Counterexample: tashʿīth fails on faulun (2nd is Long, not Short) *)
+Example tashʿīth_counterexample :
+  apply_tashʿīth faulun = None.
 Proof. reflexivity. Qed.
 
 (** ** Example: Khabn on Mustafilun *)
@@ -3061,7 +3198,7 @@ Proof. reflexivity. Qed.
 (** ** Variation Enumeration *)
 
 Definition all_zihaf : list zihaf := [Khabn; Tayy; Qabḍ; Kaff; Waqṣ; ʿAṣb; Iḍmār; ʿAql; Shamm].
-Definition all_ʿilla : list ʿilla := [Qaṭʿ; Qaṣr; Ḥadhf; Tasbīgh; Batr; Qaṭf; Tarfīl].
+Definition all_ʿilla : list ʿilla := [Qaṭʿ; Qaṣr; Ḥadhf; Tasbīgh; Batr; Qaṭf; Tarfīl; Tadhyīl; Ḥadhādh; Ṣalm; Kashf; Waqf; Tashʿīth].
 
 Lemma all_zihaf_complete : forall z : zihaf, In z all_zihaf.
 Proof.
@@ -3079,20 +3216,14 @@ Qed.
 
 Lemma all_ʿilla_complete : forall i : ʿilla, In i all_ʿilla.
 Proof.
-  intros i. destruct i; simpl.
-  - left. reflexivity.
-  - right. left. reflexivity.
-  - right. right. left. reflexivity.
-  - right. right. right. left. reflexivity.
-  - right. right. right. right. left. reflexivity.
-  - right. right. right. right. right. left. reflexivity.
-  - right. right. right. right. right. right. left. reflexivity.
+  intros i. destruct i; simpl;
+  repeat (try (left; reflexivity); right).
 Qed.
 
 Lemma all_zihaf_length : length all_zihaf = 9.
 Proof. reflexivity. Qed.
 
-Lemma all_ʿilla_length : length all_ʿilla = 7.
+Lemma all_ʿilla_length : length all_ʿilla = 13.
 Proof. reflexivity. Qed.
 
 (** Witness: Khabn in all_zihaf *)
@@ -3125,7 +3256,7 @@ Proof.
   destruct H as [H | [H | H]]; try discriminate; contradiction.
 Qed.
 
-(** Witness: 8 zihaf types *)
+(** Witness: 9 zihaf types *)
 Example all_zihaf_length_witness : length all_zihaf = 9.
 Proof. reflexivity. Qed.
 
@@ -3134,19 +3265,19 @@ Example all_zihaf_length_example : length all_zihaf <> 8.
 Proof. discriminate. Qed.
 
 (** Counterexample: 5 ʿilla types, not 8 *)
-Example all_zihaf_length_counterexample : length all_ʿilla <> 8.
+Example all_zihaf_length_counterexample : length all_ʿilla <> 9.
 Proof. discriminate. Qed.
 
-(** Witness: 7 ʿilla types *)
-Example all_ʿilla_length_witness : length all_ʿilla = 7.
+(** Witness: 13 ʿilla types *)
+Example all_ʿilla_length_witness : length all_ʿilla = 13.
 Proof. reflexivity. Qed.
 
-(** Example: not 5 *)
-Example all_ʿilla_length_example : length all_ʿilla <> 5.
+(** Example: not 7 (old count) *)
+Example all_ʿilla_length_example : length all_ʿilla <> 7.
 Proof. discriminate. Qed.
 
-(** Counterexample: 9 zihaf types, not 7 *)
-Example all_ʿilla_length_counterexample : length all_zihaf <> 7.
+(** Counterexample: 9 zihaf types, not 13 *)
+Example all_ʿilla_length_counterexample : length all_zihaf <> 13.
 Proof. discriminate. Qed.
 
 (** ** Variation Applicability *)
