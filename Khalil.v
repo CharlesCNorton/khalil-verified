@@ -16,7 +16,7 @@
 (*                                                                            *)
 (******************************************************************************)
 
-Require Import List Lia Bool.
+Require Import List Lia Bool Arith.
 Require Import Coq.Classes.DecidableClass.
 Import ListNotations.
 
@@ -551,6 +551,82 @@ Proof.
   intros ls. split.
   - apply wf_letter_seq_implies_some.
   - intros [p Hp]. exact (some_implies_wf_letter_seq ls p Hp).
+Qed.
+
+(** ** Hardened Letter-to-Pattern Conversion *)
+
+(** A richer error type distinguishes "variation precondition not met"
+    (the operation is inapplicable) from "variation produced a malformed
+    letter sequence" (a bug in the variation function). *)
+
+Inductive conversion_result : Type :=
+  | ConvOk : pattern -> conversion_result
+  | ConvPreconditionFailed : conversion_result
+  | ConvMalformedOutput : conversion_result.
+
+(** Guarded conversion: checks wf_letter_seq before attempting
+    letters_to_pattern, so a malformed output is reported distinctly. *)
+
+Definition letters_to_pattern_guarded (ls : letter_seq) : conversion_result :=
+  if wf_letter_seq ls then
+    match letters_to_pattern ls with
+    | Some p => ConvOk p
+    | None => ConvMalformedOutput  (* should be impossible by wf_letter_seq_iff_convertible *)
+    end
+  else
+    ConvMalformedOutput.
+
+(** A well-formed input always succeeds via guarded conversion. *)
+Lemma letters_to_pattern_guarded_wf : forall ls p,
+  wf_letter_seq ls = true ->
+  letters_to_pattern ls = Some p ->
+  letters_to_pattern_guarded ls = ConvOk p.
+Proof.
+  intros ls p Hwf Hconv. unfold letters_to_pattern_guarded.
+  rewrite Hwf, Hconv. reflexivity.
+Qed.
+
+(** Safe variation wrapper: given a variation function that operates on
+    letters, checks that the input is well-formed (precondition), applies
+    the variation, then checks that the output is well-formed (postcondition).
+    Returns ConvPreconditionFailed if the operation returns None,
+    ConvMalformedOutput if the result is ill-formed. *)
+
+Definition safe_apply_variation
+  (vary : letter_seq -> option letter_seq)
+  (p : pattern) : conversion_result :=
+  let ls := pattern_to_letters p in
+  match vary ls with
+  | None => ConvPreconditionFailed
+  | Some ls' =>
+      if wf_letter_seq ls' then
+        match letters_to_pattern ls' with
+        | Some p' => ConvOk p'
+        | None => ConvMalformedOutput
+        end
+      else
+        ConvMalformedOutput
+  end.
+
+(** The input to safe_apply_variation is always well-formed. *)
+Lemma safe_apply_input_wf : forall p,
+  wf_letter_seq (pattern_to_letters p) = true.
+Proof.
+  exact pattern_to_letters_wf.
+Qed.
+
+(** If safe_apply_variation returns ConvOk, the result round-trips. *)
+Lemma safe_apply_ok_sound : forall vary p p',
+  safe_apply_variation vary p = ConvOk p' ->
+  exists ls', vary (pattern_to_letters p) = Some ls' /\
+              letters_to_pattern ls' = Some p'.
+Proof.
+  intros vary p p' H. unfold safe_apply_variation in H.
+  destruct (vary (pattern_to_letters p)) as [ls'|] eqn:Ev;
+    [|discriminate].
+  destruct (wf_letter_seq ls') eqn:Ewf; [|discriminate].
+  destruct (letters_to_pattern ls') as [q|] eqn:Ec; [|discriminate].
+  exists ls'. inversion H. subst q. auto.
 Qed.
 
 (** ** Letter-level position helpers *)
@@ -2560,6 +2636,65 @@ Proof.
   apply firstn_skipn_comm. exact Hnm.
 Qed.
 
+(** Rotation by complement restores the original. *)
+Lemma rotate_complement : forall n p,
+  n <= length p ->
+  rotate (length p - n) (rotate n p) = p.
+Proof.
+  intros n p Hn.
+  rewrite rotate_add by lia.
+  replace (n + (length p - n)) with (length p) by lia.
+  apply rotate_length.
+Qed.
+
+(** Mod helper: when a < b and c > 0, (a + 1 * c) mod c = a. *)
+Lemma mod_add_once : forall a c,
+  c > 0 -> a < c -> (a + c) mod c = a.
+Proof.
+  intros a c Hc Ha.
+  replace (a + c) with (a + 1 * c) by lia.
+  rewrite Nat.Div0.mod_add.
+  apply Nat.mod_small. lia.
+Qed.
+
+(** Full mod composition: rotate m after rotate n equals rotate ((n+m) mod length p). *)
+Lemma rotate_add_mod : forall n m p,
+  length p > 0 -> n <= length p -> m <= length p ->
+  rotate m (rotate n p) = rotate ((n + m) mod length p) p.
+Proof.
+  intros n m p Hpos Hn Hm.
+  destruct (Nat.le_gt_cases (n + m) (length p)) as [Hle|Hgt].
+  - (* n + m <= length p: use rotate_add *)
+    rewrite rotate_add by assumption.
+    destruct (Nat.eq_dec (n + m) (length p)) as [Heq|Hneq].
+    + rewrite Heq, Nat.mod_same by lia.
+      rewrite rotate_length. symmetry. apply rotate_0.
+    + rewrite Nat.mod_small by lia. reflexivity.
+  - (* n + m > length p: factor through complement *)
+    destruct (Nat.eq_dec (n + m) (2 * length p)) as [He2|Hne2].
+    + (* n = m = length p: both sides are p *)
+      assert (n = length p) by lia.
+      assert (m = length p) by lia.
+      subst n m.
+      rewrite rotate_length.
+      rewrite rotate_length.
+      replace (length p + length p) with (2 * length p) by lia.
+      rewrite Nat.Div0.mod_mul.
+      symmetry. apply rotate_0.
+    + set (k := n + m - length p).
+      assert (Hk: k < length p) by (unfold k; lia).
+      assert (Hm_split: m = (length p - n) + k) by (unfold k; lia).
+      assert (Hmod: (n + m) mod length p = k).
+      { assert (Hnm_eq: n + m = k + length p) by (unfold k; lia).
+        rewrite Hnm_eq. apply mod_add_once; lia. }
+      rewrite Hmod. rewrite Hm_split.
+      (* rotate (length p - n + k) (rotate n p) = rotate k p *)
+      rewrite <- (rotate_add (length p - n) k (rotate n p))
+        by (rewrite rotate_length_preserved; unfold k; lia).
+      rewrite rotate_complement by assumption.
+      reflexivity.
+Qed.
+
 (** Witness: rotation preserves length *)
 Example rotate_length_witness :
   length (rotate 2 mafailun) = length mafailun.
@@ -3033,6 +3168,26 @@ Proof. reflexivity. Qed.
 Example ṣalm_counterexample :
   apply_ṣalm [Short] = None.
 Proof. reflexivity. Qed.
+
+(** Ṣalm rejects watad majmūʿ endings (only ḥadhādh accepts those). *)
+Example ṣalm_rejects_majmu :
+  apply_ṣalm mutafailun = None.
+Proof. reflexivity. Qed.
+
+(** Ḥadhādh rejects watad mafrūq endings (only ṣalm accepts those). *)
+Example ḥadhādh_rejects_mafruq :
+  apply_ḥadhādh mafulatu = None.
+Proof. reflexivity. Qed.
+
+(** Tarfīl and tadhyīl are extensionally equal at the syllable-weight
+    level. The traditional distinction (tarfīl adds a full sabab,
+    tadhyīl adds a single sākin letter) is sub-syllabic and would
+    require a richer weight type (e.g., SuperLong) to capture. *)
+Lemma tarfīl_eq_tadhyīl : forall p,
+  apply_tarfīl p = apply_tadhyīl p.
+Proof.
+  intros p. unfold apply_tarfīl, apply_tadhyīl. reflexivity.
+Qed.
 
 (** Kashf: drop the last letter of the final watad mafrūq.
     At the syllable level, the final Short of watad mafrūq
