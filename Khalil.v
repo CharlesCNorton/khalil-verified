@@ -449,6 +449,97 @@ Proof.
       simpl. rewrite IH. reflexivity.
 Qed.
 
+(** ** Well-formedness characterizes convertibility *)
+
+(** One-step unfolding lemmas for letters_to_pattern. *)
+
+Lemma letters_to_pattern_cons_M_M : forall ls,
+  letters_to_pattern (Mutaharrik :: Mutaharrik :: ls) =
+  match letters_to_pattern (Mutaharrik :: ls) with
+  | Some p => Some (Short :: p) | None => None end.
+Proof. reflexivity. Qed.
+
+Lemma letters_to_pattern_cons_M_S : forall ls,
+  letters_to_pattern (Mutaharrik :: Sakin :: ls) =
+  match letters_to_pattern ls with
+  | Some p => Some (Long :: p) | None => None end.
+Proof. reflexivity. Qed.
+
+(** Forward: well-formed letter sequences convert successfully.
+    Uses strong induction on length because the M::S::rest case
+    decreases by 2, beyond standard structural induction. *)
+
+Lemma wf_letter_seq_implies_some_aux : forall n ls,
+  length ls <= n ->
+  wf_letter_seq ls = true -> exists p, letters_to_pattern ls = Some p.
+Proof.
+  induction n as [|n IH]; intros ls Hlen H.
+  - destruct ls; [exists []; reflexivity | simpl in Hlen; lia].
+  - destruct ls as [|[] ls'].
+    + exists []. reflexivity.
+    + destruct ls' as [|[] ls''].
+      * exists [Short]. reflexivity.
+      * (* Mutaharrik :: Mutaharrik :: ls'' *)
+        rewrite letters_to_pattern_cons_M_M. simpl in H.
+        assert (Hlen' : length (Mutaharrik :: ls'') <= n) by (simpl in Hlen |- *; lia).
+        destruct (IH _ Hlen' H) as [p Hp]. rewrite Hp. eexists. reflexivity.
+      * (* Mutaharrik :: Sakin :: ls'' *)
+        rewrite letters_to_pattern_cons_M_S. simpl in H.
+        assert (Hlen' : length ls'' <= n) by (simpl in Hlen; lia).
+        destruct (IH _ Hlen' H) as [p Hp]. rewrite Hp. eexists. reflexivity.
+    + simpl in H. discriminate.
+Qed.
+
+Lemma wf_letter_seq_implies_some : forall ls,
+  wf_letter_seq ls = true -> exists p, letters_to_pattern ls = Some p.
+Proof.
+  intros ls. apply (wf_letter_seq_implies_some_aux (length ls)). lia.
+Qed.
+
+(** Backward: successful conversion implies well-formedness. *)
+
+Lemma some_implies_wf_letter_seq_aux : forall n ls p,
+  length ls <= n ->
+  letters_to_pattern ls = Some p -> wf_letter_seq ls = true.
+Proof.
+  induction n as [|n IH]; intros ls p Hlen H.
+  - destruct ls; [reflexivity | simpl in Hlen; lia].
+  - destruct ls as [|[] ls'].
+    + reflexivity.
+    + destruct ls' as [|[] ls''].
+      * reflexivity.
+      * (* Mutaharrik :: Mutaharrik :: ls'' *)
+        rewrite letters_to_pattern_cons_M_M in H. simpl.
+        destruct (letters_to_pattern (Mutaharrik :: ls'')) as [q|] eqn:E; [|discriminate].
+        assert (Hlen' : length (Mutaharrik :: ls'') <= n) by (simpl in Hlen |- *; lia).
+        exact (IH _ q Hlen' E).
+      * (* Mutaharrik :: Sakin :: ls'' *)
+        rewrite letters_to_pattern_cons_M_S in H. simpl.
+        destruct (letters_to_pattern ls'') as [q|] eqn:E; [|discriminate].
+        assert (Hlen' : length ls'' <= n) by (simpl in Hlen; lia).
+        exact (IH _ q Hlen' E).
+    + simpl in H. discriminate.
+Qed.
+
+Lemma some_implies_wf_letter_seq : forall ls p,
+  letters_to_pattern ls = Some p -> wf_letter_seq ls = true.
+Proof.
+  intros ls p. apply (some_implies_wf_letter_seq_aux (length ls)). lia.
+Qed.
+
+(** wf_letter_seq decides exactly which letter sequences are
+    convertible to syllable patterns. Checking wf_letter_seq before
+    letters_to_pattern guarantees success; failure of letters_to_pattern
+    after a wf_letter_seq=true check is impossible. *)
+
+Theorem wf_letter_seq_iff_convertible : forall ls,
+  wf_letter_seq ls = true <-> exists p, letters_to_pattern ls = Some p.
+Proof.
+  intros ls. split.
+  - apply wf_letter_seq_implies_some.
+  - intros [p Hp]. exact (some_implies_wf_letter_seq ls p Hp).
+Qed.
+
 (** ** Letter-level position helpers *)
 
 (** Find the nth sākin letter's index in a letter sequence (0-indexed). *)
