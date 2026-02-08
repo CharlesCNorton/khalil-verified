@@ -17,6 +17,7 @@
 (******************************************************************************)
 
 Require Import List Lia Bool.
+Require Import Coq.Classes.DecidableClass.
 Import ListNotations.
 
 (** * Section 1: Foundations *)
@@ -186,6 +187,18 @@ Proof.
   - apply ReflectF. intros H. subst.
     rewrite (proj2 (pattern_eqb_eq p2 p2) eq_refl) in E. discriminate.
 Qed.
+
+(** ** Standard-library decidable equality instances *)
+
+#[export] Instance weight_eq_decidable (w1 w2 : weight) : Decidable (w1 = w2) := {
+  Decidable_witness := weight_eqb w1 w2 ;
+  Decidable_spec := weight_eqb_eq w1 w2
+}.
+
+#[export] Instance pattern_eq_decidable (p1 p2 : pattern) : Decidable (p1 = p2) := {
+  Decidable_witness := pattern_eqb p1 p2 ;
+  Decidable_spec := pattern_eqb_eq p1 p2
+}.
 
 (** Witness: pattern_eqb [Long] [Long] = true *)
 Example pattern_eqb_witness : pattern_eqb [Long] [Long] = true.
