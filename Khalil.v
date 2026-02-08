@@ -2907,12 +2907,27 @@ Definition apply_qaṭf (p : pattern) : option pattern :=
   | None => None
   end.
 
-(** Tarfīl: append a Long syllable (sabab khafīf) after the pattern *)
-Definition apply_tarfīl (p : pattern) : option pattern :=
+(** ** Watad-ending predicates *)
+
+(** Extract the last two syllables of a pattern, if it has at least two. *)
+Fixpoint last_two (p : pattern) : option (weight * weight) :=
   match p with
-  | [] => None
-  | _ => Some (p ++ [Long])
+  | [] | [_] => None
+  | [a; b] => Some (a, b)
+  | _ :: rest => last_two rest
   end.
+
+Definition ends_with_watad_majmu (p : pattern) : bool :=
+  match last_two p with Some (Short, Long) => true | _ => false end.
+
+Definition ends_with_watad_mafruq (p : pattern) : bool :=
+  match last_two p with Some (Long, Short) => true | _ => false end.
+
+(** Tarfīl: append sabab khafīf after final watad majmūʿ.
+    Requires the pattern to end in watad majmūʿ (Short; Long). *)
+Definition apply_tarfīl (p : pattern) : option pattern :=
+  if ends_with_watad_majmu p then Some (p ++ [Long])
+  else None.
 
 (** Qaṭf on mufaalatun: ʿaṣb gives [Short;Long;Long;Long],
     then ḥadhf drops final: [Short;Long;Long] = faulun. *)
@@ -2939,12 +2954,14 @@ Proof. reflexivity. Qed.
     At the syllable level, this extends the final Long by one mora,
     which in practice means the final syllable becomes super-heavy.
     We model this as appending a Long syllable (the extra sākin
-    merges with the preceding watad's final sākin to form CvCC). *)
+    merges with the preceding watad's final sākin to form CvCC).
+    Requires the pattern to end in watad majmūʿ (Short; Long).
+    NOTE: at the syllable-weight level, tadhyīl and tarfīl are
+    identical operations. The distinction is sub-syllabic and would
+    require a richer weight type (e.g., SuperLong) to capture. *)
 Definition apply_tadhyīl (p : pattern) : option pattern :=
-  match p with
-  | [] => None
-  | _ => Some (p ++ [Long])
-  end.
+  if ends_with_watad_majmu p then Some (p ++ [Long])
+  else None.
 
 (** Tadhyīl on failun: append Long → [Long; Short; Long; Long]. *)
 Example tadhyīl_failun :
@@ -2969,8 +2986,10 @@ Fixpoint drop_last_n (n : nat) (p : pattern) : option pattern :=
       end
   end.
 
+(** Requires the pattern to end in watad majmūʿ (Short; Long). *)
 Definition apply_ḥadhādh (p : pattern) : option pattern :=
-  drop_last_n 2 p.
+  if ends_with_watad_majmu p then drop_last_n 2 p
+  else None.
 
 (** Ḥadhādh on mutafailun: drop last 2 syllables.
     mutafailun = [Short; Short; Long; Short; Long] →
@@ -2985,10 +3004,11 @@ Example ḥadhādh_counterexample :
 Proof. reflexivity. Qed.
 
 (** Ṣalm: drop the entire final watad mafrūq (last two syllables:
-    Long + Short → remove both). Same mechanics as ḥadhādh but
-    traditionally applies to feet ending in watad mafrūq. *)
+    Long + Short → remove both). Requires the pattern to end in
+    watad mafrūq (Long; Short). *)
 Definition apply_ṣalm (p : pattern) : option pattern :=
-  drop_last_n 2 p.
+  if ends_with_watad_mafruq p then drop_last_n 2 p
+  else None.
 
 (** Ṣalm on mafulatu: drop last 2.
     mafulatu = [Long; Long; Long; Short] → [Long; Long]. *)
@@ -3714,15 +3734,9 @@ Qed.
 Lemma tarfīl_increases_by_one : forall p p',
   apply_tarfīl p = Some p' -> length p' = S (length p).
 Proof.
-  induction p as [|w ps IH]; intros p' H; simpl in H.
-  - discriminate.
-  - injection H as Hp. subst p'. simpl.
-    destruct ps as [|w' ps'].
-    + reflexivity.
-    + simpl. f_equal. f_equal.
-      assert (Htmp : apply_tarfīl (w' :: ps') = Some ((w' :: ps') ++ [Long])).
-      { reflexivity. }
-      specialize (IH _ Htmp). simpl in IH. lia.
+  intros p p' H. unfold apply_tarfīl in H.
+  destruct (ends_with_watad_majmu p); [|discriminate].
+  injection H as Hp. subst p'. rewrite app_length. simpl. lia.
 Qed.
 
 (** Deleting a sākin letter preserves syllable count on all applicable feet. *)
