@@ -2860,6 +2860,93 @@ Example within_circle_counterexample :
   rotate 2 mafailun = mustafilun.
 Proof. reflexivity. Qed.
 
+(** ** Orbit Representative Theorem *)
+
+(** The 8 canonical feet are exactly the foot-patterns obtainable by
+    rotating three generators — faulun (trisyllabic), mafailun
+    (quadrisyllabic), mufaalatun (pentasyllabic) — within the full
+    pattern space {S,L}^3 ∪ {S,L}^4 ∪ {S,L}^5. *)
+
+(** Every canonical foot is a rotation of its size-class generator. *)
+Theorem foot_in_generator_orbit : forall f : foot,
+  exists (g : pattern) (n : nat),
+    In g [faulun; mafailun; mufaalatun] /\
+    n < length g /\
+    rotate n g = foot_pattern f.
+Proof.
+  intros f; destruct f.
+  - exists faulun, 0. split. left. reflexivity. split. simpl. lia. reflexivity.
+  - exists faulun, 2. split. left. reflexivity. split. simpl. lia. reflexivity.
+  - exists mafailun, 0. split. right. left. reflexivity. split. simpl. lia. reflexivity.
+  - exists mafailun, 2. split. right. left. reflexivity. split. simpl. lia. reflexivity.
+  - exists mafailun, 3. split. right. left. reflexivity. split. simpl. lia. reflexivity.
+  - exists mafailun, 1. split. right. left. reflexivity. split. simpl. lia. reflexivity.
+  - exists mufaalatun, 2. split. right. right. left. reflexivity. split. simpl. lia. reflexivity.
+  - exists mufaalatun, 0. split. right. right. left. reflexivity. split. simpl. lia. reflexivity.
+Defined.
+
+(** Converse: every foot-producing rotation of a generator is a
+    canonical foot pattern. Together with the forward direction and the
+    exhaustion lemmas, this shows the 8 feet are exactly the
+    rotation-orbit representatives. *)
+Theorem generator_orbit_yields_foot : forall g n,
+  In g [faulun; mafailun; mufaalatun] ->
+  n < length g ->
+  is_foot (rotate n g) = true ->
+  exists f : foot, foot_pattern f = rotate n g.
+Proof.
+  intros g n Hg Hn Hfoot.
+  destruct Hg as [Hg | [Hg | [Hg | []]]]; subst g; simpl in Hn.
+  - destruct n as [|[|[|n]]]; try lia; simpl in Hfoot |- *.
+    + exists Faulun. reflexivity.
+    + discriminate.
+    + exists Failun. reflexivity.
+  - destruct n as [|[|[|[|n]]]]; try lia; simpl in Hfoot |- *.
+    + exists Mafailun. reflexivity.
+    + exists Mafulatu. reflexivity.
+    + exists Mustafilun. reflexivity.
+    + exists Failatun. reflexivity.
+  - destruct n as [|[|[|[|[|n]]]]]; try lia; simpl in Hfoot |- *.
+    + exists Mufaalatun. reflexivity.
+    + discriminate.
+    + exists Mutafailun. reflexivity.
+    + discriminate.
+    + discriminate.
+Defined.
+
+(** The three generator orbits are pairwise disjoint
+    (rotation preserves length, and 3 ≠ 4 ≠ 5). *)
+
+Lemma orbit_disjoint_tri_quad : forall n m,
+  rotate n faulun <> rotate m mafailun.
+Proof.
+  intros n m Hcontra.
+  assert (Hlen : length (rotate n faulun) = length (rotate m mafailun)).
+  { rewrite Hcontra. reflexivity. }
+  repeat rewrite rotate_length_preserved in Hlen.
+  simpl in Hlen. discriminate.
+Qed.
+
+Lemma orbit_disjoint_tri_penta : forall n m,
+  rotate n faulun <> rotate m mufaalatun.
+Proof.
+  intros n m Hcontra.
+  assert (Hlen : length (rotate n faulun) = length (rotate m mufaalatun)).
+  { rewrite Hcontra. reflexivity. }
+  repeat rewrite rotate_length_preserved in Hlen.
+  simpl in Hlen. discriminate.
+Qed.
+
+Lemma orbit_disjoint_quad_penta : forall n m,
+  rotate n mafailun <> rotate m mufaalatun.
+Proof.
+  intros n m Hcontra.
+  assert (Hlen : length (rotate n mafailun) = length (rotate m mufaalatun)).
+  { rewrite Hcontra. reflexivity. }
+  repeat rewrite rotate_length_preserved in Hlen.
+  simpl in Hlen. discriminate.
+Qed.
+
 (** End of Section 5: The Five Circles *)
 
 (** * Section 6: Variation Rules (Zihāf and ʿIlla) *)
