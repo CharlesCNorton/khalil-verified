@@ -3721,7 +3721,11 @@ Proof.
   destruct z1, z2; try (left; reflexivity); right; discriminate.
 Defined.
 
-(** Compound zihāf application: compose two simple operations. *)
+(** Compound zihāf application.
+    Khazl and naqs use sequential composition because their first
+    operation is a replacement (iḍmār, ʿaṣb), which preserves indices.
+    Khabl and shakl use simultaneous deletion because their first
+    operation (khabn) is a deletion that shifts subsequent indices. *)
 
 Definition apply_khazl (p : pattern) : option pattern :=
   match apply_iḍmār p with
@@ -3729,16 +3733,24 @@ Definition apply_khazl (p : pattern) : option pattern :=
   | None => None
   end.
 
+(** Khabl: khabn (delete index 1) + tayy (delete index 3).
+    Both target the original letter sequence simultaneously. *)
 Definition apply_khabl (p : pattern) : option pattern :=
-  match apply_khabn p with
-  | Some p' => apply_tayy p'
-  | None => None
+  let ls := pattern_to_letters p in
+  match nth_error ls 1, nth_error ls 3 with
+  | Some Sakin, Some Sakin =>
+      letters_to_pattern (delete_at 1 (delete_at 3 ls))
+  | _, _ => None
   end.
 
+(** Shakl: khabn (delete index 1) + kaff (delete index 6).
+    Both target the original letter sequence simultaneously. *)
 Definition apply_shakl (p : pattern) : option pattern :=
-  match apply_khabn p with
-  | Some p' => apply_kaff p'
-  | None => None
+  let ls := pattern_to_letters p in
+  match nth_error ls 1, nth_error ls 6 with
+  | Some Sakin, Some Sakin =>
+      letters_to_pattern (delete_at 1 (delete_at 6 ls))
+  | _, _ => None
   end.
 
 Definition apply_naqs (p : pattern) : option pattern :=
@@ -3773,16 +3785,25 @@ Example khazl_witness :
   apply_khazl mutafailun = Some [Long; Short; Short; Long].
 Proof. reflexivity. Qed.
 
-(** Example: khabl on mustafilun (khabn then tayy).
-    khabn: [M;S;M;S;M;M;S] → delete index 1 → [M;M;S;M;M;S]
-    = [Short;Long;Short;Long].
-    tayy on [Short;Long;Short;Long]: letters [M;M;S;M;M;S],
-    index 3 is M, not S → tayy fails → khabl fails. *)
-Example khabl_mustafilun_fails :
-  apply_khabl mustafilun = None.
+(** Example: khabl on mustafilun (simultaneous delete indices 1 and 3).
+    mustafilun letters = [M;S;M;S;M;M;S].
+    Delete index 3 first: [M;S;M;M;M;S].
+    Delete index 1: [M;M;M;M;S].
+    Re-syllabified: maftaʿlun = [Short;Short;Short;Long]. *)
+Example khabl_mustafilun :
+  apply_khabl mustafilun = Some [Short; Short; Short; Long].
 Proof. reflexivity. Qed.
 
-(** Counterexample: shakl requires both khabn and kaff to apply *)
+(** Example: shakl on failatun (simultaneous delete indices 1 and 6).
+    failatun letters = [M;S;M;M;S;M;S].
+    Delete index 6 first: [M;S;M;M;S;M].
+    Delete index 1: [M;M;M;S;M].
+    Re-syllabified: [Short;Short;Long;Short]. *)
+Example shakl_failatun :
+  apply_shakl failatun = Some [Short; Short; Long; Short].
+Proof. reflexivity. Qed.
+
+(** Counterexample: shakl fails when khabn precondition not met *)
 Example shakl_on_faulun :
   apply_shakl faulun = None.
 Proof. reflexivity. Qed.
