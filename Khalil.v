@@ -5363,6 +5363,157 @@ Proof.
     exact (Hloop all_meters H).
 Qed.
 
+(** ** Scansion Completeness *)
+
+(** A pattern is a legal variant of meter m if it decomposes into
+    one variant from each foot's variant list (as computed by
+    meter_foot_variants). *)
+
+Definition is_legal_meter_variant (p : pattern) (m : meter) : Prop :=
+  is_variant_decomposition p (meter_foot_variants m).
+
+(** The inner try_variants loop is complete: if some candidate in the
+    list has a matching prefix and the recursive call on the remainder
+    succeeds, the loop returns Some. *)
+
+Lemma try_variants_complete : forall candidates p rest v_w ann_w,
+  In (v_w, ann_w) candidates ->
+  pattern_eqb (firstn (length v_w) p) v_w = true ->
+  (exists anns_rest, match_variant_pattern (skipn (length v_w) p) rest = Some anns_rest) ->
+  exists anns,
+    (fix try_variants (cs : list annotated_variant)
+      : option (list foot_annotation) :=
+      match cs with
+      | [] => None
+      | (v, ann) :: cs' =>
+          if pattern_eqb (firstn (length v) p) v then
+            match match_variant_pattern (skipn (length v) p) rest with
+            | Some anns => Some (ann :: anns)
+            | None => try_variants cs'
+            end
+          else try_variants cs'
+      end) candidates = Some anns.
+Proof.
+  induction candidates as [|[v0 ann0] cs0 IH];
+    intros p rest v_w ann_w Hin Hpfx Hmvp.
+  - destruct Hin.
+  - simpl.
+    destruct (pattern_eqb (firstn (length v0) p) v0) eqn:Epfx0.
+    + destruct (match_variant_pattern (skipn (length v0) p) rest) as [anns0|] eqn:Emvp0.
+      * eexists. reflexivity.
+      * destruct Hin as [Heq | Hin].
+        -- inversion Heq; subst.
+           destruct Hmvp as [ar Har]. rewrite Har in Emvp0. discriminate.
+        -- exact (IH p rest v_w ann_w Hin Hpfx Hmvp).
+    + destruct Hin as [Heq | Hin].
+      * inversion Heq; subst. rewrite Hpfx in Epfx0. discriminate.
+      * exact (IH p rest v_w ann_w Hin Hpfx Hmvp).
+Qed.
+
+(** Main structural lemma: if a pattern admits a variant decomposition
+    with respect to a list of per-foot variant sets, then
+    match_variant_pattern succeeds. *)
+
+Lemma match_variant_pattern_complete : forall p foot_vars,
+  is_variant_decomposition p foot_vars ->
+  exists anns, match_variant_pattern p foot_vars = Some anns.
+Proof.
+  intros p foot_vars. revert p.
+  induction foot_vars as [|vs rest IH]; intros p Hdecomp.
+  - simpl in Hdecomp. subst p. exists []. reflexivity.
+  - simpl in Hdecomp.
+    destruct Hdecomp as [v [ann [Hin [Hpfx Hrest]]]].
+    destruct (IH _ Hrest) as [anns_rest Hmvp].
+    simpl.
+    exact (try_variants_complete vs p rest v ann Hin
+      (proj2 (pattern_eqb_eq _ _) Hpfx)
+      (ex_intro _ anns_rest Hmvp)).
+Qed.
+
+(** The try_meters loop is complete: if some meter in the list has a
+    successful match_variant_pattern, the loop does not return ScanFailed. *)
+
+Lemma try_meters_complete : forall ms p m anns,
+  In m ms ->
+  match_variant_pattern p (meter_foot_variants m) = Some anns ->
+  (fix try_meters (ms : list meter) : scan_result :=
+    match ms with
+    | [] => ScanFailed
+    | m :: ms' =>
+        match match_variant_pattern p (meter_foot_variants m) with
+        | Some anns => ScanVariant m anns
+        | None => try_meters ms'
+        end
+    end) ms <> ScanFailed.
+Proof.
+  induction ms as [|m0 ms' IH]; intros p m anns Hin Hmvp.
+  - destruct Hin.
+  - simpl.
+    destruct (match_variant_pattern p (meter_foot_variants m0)) as [anns0|] eqn:Emvp0.
+    + discriminate.
+    + destruct Hin as [Heq | Hin].
+      * subst m0. rewrite Hmvp in Emvp0. discriminate.
+      * exact (IH p m anns Hin Hmvp).
+Qed.
+
+(** Scansion completeness theorem: if a pattern is a legal variant
+    of any meter (each foot contributes either its canonical pattern
+    or the result of a legal variation), then scan does not fail. *)
+
+Theorem scan_complete : forall p m,
+  is_legal_meter_variant p m ->
+  scan p <> ScanFailed.
+Proof.
+  intros p m Hvar.
+  unfold is_legal_meter_variant in Hvar.
+  destruct (match_variant_pattern_complete p _ Hvar) as [anns Hmvp].
+  unfold scan.
+  destruct (pattern_to_meter p) eqn:Eptm.
+  - discriminate.
+  - exact (try_meters_complete all_meters p m anns (all_meters_complete m) Hmvp).
+Qed.
+
+(** Canonical foot patterns are always in the hashw variant list. *)
+Lemma canonical_in_hashw : forall f,
+  In (foot_pattern f, Canonical) (foot_hashw_variants f).
+Proof.
+  intros f. unfold foot_hashw_variants. left. reflexivity.
+Qed.
+
+(** Canonical foot patterns are always in the terminal variant list. *)
+Lemma canonical_in_terminal : forall m,
+  In (foot_pattern (last (meter_feet m) Faulun), Canonical)
+    (foot_terminal_variants m).
+Proof.
+  intros m. unfold foot_terminal_variants. left. reflexivity.
+Qed.
+
+(** The exact meter pattern admits a variant decomposition via
+    match_variant_pattern (each foot matches canonically). *)
+Lemma exact_meter_matches : forall m,
+  exists anns, match_variant_pattern (meter_pattern m) (meter_foot_variants m) = Some anns.
+Proof.
+  intros m. destruct m; vm_compute; eexists; reflexivity.
+Qed.
+
+(** The exact meter pattern is a legal variant (by soundness of
+    match_variant_pattern). *)
+Lemma exact_is_legal_variant : forall m,
+  is_legal_meter_variant (meter_pattern m) m.
+Proof.
+  intros m.
+  unfold is_legal_meter_variant.
+  destruct (exact_meter_matches m) as [anns Hmvp].
+  exact (match_variant_pattern_sound _ _ _ Hmvp).
+Qed.
+
+(** Witness: scan_complete applied to exact Tawil. *)
+Example scan_complete_witness_exact :
+  scan (meter_pattern Tawil) <> ScanFailed.
+Proof.
+  exact (scan_complete _ _ (exact_is_legal_variant Tawil)).
+Qed.
+
 (** ** Hemistich Repetition *)
 
 (** A full line (bayt) consists of two hemistichs (shaṭr).
