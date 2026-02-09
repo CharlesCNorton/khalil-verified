@@ -4933,25 +4933,68 @@ Qed.
     Here we formalize the abstract scansion process, assuming syllable weights
     are already determined. *)
 
+(** ** Foot Annotation *)
+
+(** Records what variation (if any) was applied at each foot position
+    during scansion. *)
+
+Inductive foot_annotation : Type :=
+  | Canonical                            (* no variation *)
+  | SimpleZihaf   : zihaf -> foot_annotation
+  | CompoundZihaf : compound_zihaf -> foot_annotation
+  | Illa          : ʿilla -> foot_annotation.
+
 (** ** Scansion Result *)
 
 Inductive scan_result : Type :=
   | ScanSuccess : meter -> scan_result
-  | ScanVariant : meter -> scan_result  (* matches with variations *)
+  | ScanVariant : meter -> list foot_annotation -> scan_result
   | ScanFailed : scan_result.
+
+(** ** Decidable Equality for Foot Annotation *)
+
+Definition foot_annotation_eq_dec (a1 a2 : foot_annotation)
+  : {a1 = a2} + {a1 <> a2}.
+Proof.
+  destruct a1 as [|z1|c1|i1], a2 as [|z2|c2|i2];
+    try (left; reflexivity); try (right; discriminate).
+  - destruct (zihaf_eq_dec z1 z2) as [->|H].
+    + left. reflexivity.
+    + right. intros Heq. injection Heq. exact H.
+  - destruct (compound_zihaf_eq_dec c1 c2) as [->|H].
+    + left. reflexivity.
+    + right. intros Heq. injection Heq. exact H.
+  - destruct (ʿilla_eq_dec i1 i2) as [->|H].
+    + left. reflexivity.
+    + right. intros Heq. injection Heq. exact H.
+Defined.
 
 (** ** Decidable Equality for Scan Result *)
 
+Fixpoint foot_annotation_list_eq_dec (l1 l2 : list foot_annotation)
+  : {l1 = l2} + {l1 <> l2}.
+Proof.
+  destruct l1 as [|a1 l1'], l2 as [|a2 l2'];
+    try (left; reflexivity); try (right; discriminate).
+  destruct (foot_annotation_eq_dec a1 a2) as [->|Ha].
+  - destruct (foot_annotation_list_eq_dec l1' l2') as [->|Hl].
+    + left. reflexivity.
+    + right. intros Heq. apply Hl. congruence.
+  - right. congruence.
+Defined.
+
 Definition scan_result_eq_dec (s1 s2 : scan_result) : {s1 = s2} + {s1 <> s2}.
 Proof.
-  destruct s1 as [m1|m1|], s2 as [m2|m2|]; try (right; discriminate).
-  - destruct (meter_eq_dec m1 m2) as [H|H].
-    + left. rewrite H. reflexivity.
-    + right. intros Heq. injection Heq as Heq'. contradiction.
-  - destruct (meter_eq_dec m1 m2) as [H|H].
-    + left. rewrite H. reflexivity.
-    + right. intros Heq. injection Heq as Heq'. contradiction.
-  - left. reflexivity.
+  destruct s1 as [m1|m1 a1|], s2 as [m2|m2 a2|];
+    try (right; discriminate); try (left; reflexivity).
+  - destruct (meter_eq_dec m1 m2) as [->|Hm].
+    + left. reflexivity.
+    + right. congruence.
+  - destruct (meter_eq_dec m1 m2) as [->|Hm].
+    + destruct (foot_annotation_list_eq_dec a1 a2) as [->|Ha].
+      * left. reflexivity.
+      * right. congruence.
+    + right. congruence.
 Defined.
 
 (** Witness: scan_result_eq_dec ScanFailed ScanFailed *)
@@ -4994,86 +5037,98 @@ Proof. reflexivity. Qed.
 
 (** ** Combinatorial Scansion *)
 
-(** For each foot, compute all legal variants at a ḥashw (interior)
-    position: canonical pattern plus results of applying legal simple
-    and compound zihāf. *)
+(** Annotated variant: a pattern paired with the variation that
+    produced it, enabling the scanner to report what happened. *)
 
-Definition foot_hashw_variants (f : foot) : list pattern :=
-  foot_pattern f ::
+Definition annotated_variant := (pattern * foot_annotation)%type.
+
+(** For each foot, compute all legal annotated variants at a ḥashw
+    (interior) position: canonical pattern plus results of applying
+    legal simple and compound zihāf. *)
+
+Definition foot_hashw_variants (f : foot) : list annotated_variant :=
+  (foot_pattern f, Canonical) ::
   flat_map (fun z =>
     match apply_zihaf z (foot_pattern f) with
-    | Some p => [p]
+    | Some p => [(p, SimpleZihaf z)]
     | None => []
     end) (foot_permitted_zihaf f) ++
   flat_map (fun z =>
     match apply_compound_zihaf z (foot_pattern f) with
-    | Some p => [p]
+    | Some p => [(p, CompoundZihaf z)]
     | None => []
     end) (foot_permitted_compound f).
 
-(** For the terminal foot, compute all legal variants: canonical
-    pattern, legal zihāf (simple and compound), and legal ʿilla from
-    both ʿarūḍ and ḍarb lists. Including zihāf at the terminal
-    position reflects real practice — many classical lines carry
-    zihāf at ʿarūḍ or ḍarb. *)
+(** For the terminal foot, compute all legal annotated variants:
+    canonical pattern, legal zihāf (simple and compound), and legal
+    ʿilla from both ʿarūḍ and ḍarb lists. *)
 
-Definition foot_terminal_variants (m : meter) : list pattern :=
+Definition foot_terminal_variants (m : meter) : list annotated_variant :=
   let f := last (meter_feet m) Faulun in
-  foot_pattern f ::
+  (foot_pattern f, Canonical) ::
   flat_map (fun z =>
     match apply_zihaf z (foot_pattern f) with
-    | Some p => [p]
+    | Some p => [(p, SimpleZihaf z)]
     | None => []
     end) (foot_permitted_zihaf f) ++
   flat_map (fun z =>
     match apply_compound_zihaf z (foot_pattern f) with
-    | Some p => [p]
+    | Some p => [(p, CompoundZihaf z)]
     | None => []
     end) (foot_permitted_compound f) ++
   flat_map (fun i =>
     match apply_ʿilla i (foot_pattern f) with
-    | Some p => [p]
+    | Some p => [(p, Illa i)]
     | None => []
     end) (permitted_arud_illa m ++ permitted_darb_illa m).
 
-(** Assemble the per-foot variant lists for a meter: ḥashw variants
-    for interior feet, terminal variants for the last foot. *)
+(** Assemble the per-foot annotated variant lists for a meter. *)
 
-Definition meter_foot_variants (m : meter) : list (list pattern) :=
+Definition meter_foot_variants (m : meter) : list (list annotated_variant) :=
   let feet := meter_feet m in
   let init := removelast feet in
   map foot_hashw_variants init ++ [foot_terminal_variants m].
 
-(** Recursive foot-by-foot matching. Instead of building the full
-    Cartesian product (which is too large for kernel reduction), we
-    try each variant for the current foot: if the input prefix matches,
-    recurse on the suffix against the remaining feet. Early pruning
-    from failed prefix matches keeps this efficient. *)
+(** Recursive foot-by-foot matching with annotation collection.
+    Returns the first matching annotation list, or None. *)
 
 Fixpoint match_variant_pattern
-  (p : pattern) (foot_vars : list (list pattern)) : bool :=
+  (p : pattern) (foot_vars : list (list annotated_variant))
+  : option (list foot_annotation) :=
   match foot_vars with
-  | [] => match p with [] => true | _ => false end
+  | [] => match p with [] => Some [] | _ => None end
   | vs :: rest =>
-      existsb (fun v =>
-        pattern_eqb (firstn (length v) p) v &&
-        match_variant_pattern (skipn (length v) p) rest
-      ) vs
+      (fix try_variants (candidates : list annotated_variant)
+        : option (list foot_annotation) :=
+        match candidates with
+        | [] => None
+        | (v, ann) :: cs =>
+            if pattern_eqb (firstn (length v) p) v then
+              match match_variant_pattern (skipn (length v) p) rest with
+              | Some anns => Some (ann :: anns)
+              | None => try_variants cs
+              end
+            else try_variants cs
+        end) vs
   end.
 
 (** Full scansion: try exact match first, then combinatorial variant
-    matching across all meters using foot-by-foot decomposition. *)
+    matching across all meters using foot-by-foot decomposition.
+    ScanVariant now carries the per-foot annotation list. *)
 
 Definition scan (p : pattern) : scan_result :=
   match pattern_to_meter p with
   | Some m => ScanSuccess m
   | None =>
-      match find (fun m =>
-        match_variant_pattern p (meter_foot_variants m))
-        all_meters with
-      | Some m => ScanVariant m
-      | None => ScanFailed
-      end
+      (fix try_meters (ms : list meter) : scan_result :=
+        match ms with
+        | [] => ScanFailed
+        | m :: ms' =>
+            match match_variant_pattern p (meter_foot_variants m) with
+            | Some anns => ScanVariant m anns
+            | None => try_meters ms'
+            end
+        end) all_meters
   end.
 
 (** Witness: exact match still works through scan. *)
@@ -5081,14 +5136,13 @@ Example scan_witness :
   scan (meter_pattern Tawil) = ScanSuccess Tawil.
 Proof. vm_compute. reflexivity. Qed.
 
-(** Example: khabl on the first foot of Rajaz — khabl is unique to
-    mustafʿilun, disambiguating from Kāmil (whose mutafāʿilun admits
-    iḍmār/waqṣ/khazl but not khabl). *)
+(** Example: khabl on the first foot of Rajaz — the annotation
+    reports CompoundZihaf Khabl at foot 1, Canonical at feet 2-3. *)
 Example scan_variant_example :
   scan [Short; Short; Short; Long;
         Long; Long; Short; Long;
         Long; Long; Short; Long]
-    = ScanVariant Rajaz.
+    = ScanVariant Rajaz [CompoundZihaf Khabl; Canonical; Canonical].
 Proof. vm_compute. reflexivity. Qed.
 
 (** Example: khabl on the third (terminal) foot of Rajaz. *)
@@ -5096,42 +5150,218 @@ Example scan_perfoot_example :
   scan [Long; Long; Short; Long;
         Long; Long; Short; Long;
         Short; Short; Short; Long]
-    = ScanVariant Rajaz.
+    = ScanVariant Rajaz [Canonical; Canonical; CompoundZihaf Khabl].
 Proof. vm_compute. reflexivity. Qed.
 
-(** Example: khabn on the first foot — the combinatorial scanner
-    correctly detects that this matches Kāmil (via waqṣ) before
-    Rajaz (via khabn), revealing a real prosodic ambiguity. *)
+(** Example: this 12-syllable pattern matches Kāmil with waqṣ
+    on foot 1 and iḍmār on feet 2-3 (mutafāʿilun → mustafʿilun). *)
 Example scan_ambiguity_example :
   scan [Short; Long; Short; Long;
         Long; Long; Short; Long;
         Long; Long; Short; Long]
-    = ScanVariant Kamil.
+    = ScanVariant Kamil [SimpleZihaf Waqṣ; SimpleZihaf Iḍmār; SimpleZihaf Iḍmār].
 Proof. vm_compute. reflexivity. Qed.
 
 (** Example: multi-foot simultaneous variation — khabl on foot 1
-    and tayy on foot 2 of Rajaz. The combinatorial scanner handles
-    multi-foot variation that single-foot scanning misses. *)
+    and tayy on foot 2 of Rajaz, both reported in annotations. *)
 Example scan_multi_foot_example :
   scan [Short; Short; Short; Long;
         Long; Short; Short; Long;
         Long; Long; Short; Long]
-    = ScanVariant Rajaz.
+    = ScanVariant Rajaz [CompoundZihaf Khabl; SimpleZihaf Tayy; Canonical].
 Proof. vm_compute. reflexivity. Qed.
 
 (** Example: ʿilla at the terminal position — qaṭʿ on the last
-    foot of Rajaz (mustafʿilun → [L;L;L]). *)
+    foot of Rajaz, reported as Illa Qaṭʿ. *)
 Example scan_illa_example :
   scan [Long; Long; Short; Long;
         Long; Long; Short; Long;
         Long; Long; Long]
-    = ScanVariant Rajaz.
+    = ScanVariant Rajaz [Canonical; Canonical; Illa Qaṭʿ].
 Proof. vm_compute. reflexivity. Qed.
 
 (** Counterexample: gibberish still fails. *)
 Example scan_counterexample :
   scan [Short; Short; Short] = ScanFailed.
 Proof. vm_compute. reflexivity. Qed.
+
+(** ** Scansion Soundness *)
+
+(** A pattern is a valid variant decomposition of a list of per-foot
+    variant sets if it can be split into consecutive segments, where
+    each segment is drawn from the corresponding variant set. *)
+
+Fixpoint is_variant_decomposition
+  (p : pattern) (foot_vars : list (list annotated_variant))
+  : Prop :=
+  match foot_vars with
+  | [] => p = []
+  | vs :: rest =>
+      exists v ann,
+        In (v, ann) vs /\
+        firstn (length v) p = v /\
+        is_variant_decomposition (skipn (length v) p) rest
+  end.
+
+(** The inner try_variants loop: if it returns Some, one of the
+    candidates matched and the rest decomposed. *)
+
+Lemma try_variants_sound : forall candidates p rest anns,
+  (fix try_variants (cs : list annotated_variant)
+    : option (list foot_annotation) :=
+    match cs with
+    | [] => None
+    | (v, ann) :: cs' =>
+        if pattern_eqb (firstn (length v) p) v then
+          match match_variant_pattern (skipn (length v) p) rest with
+          | Some anns => Some (ann :: anns)
+          | None => try_variants cs'
+          end
+        else try_variants cs'
+    end) candidates = Some anns ->
+  (forall p' anns',
+    match_variant_pattern p' rest = Some anns' ->
+    is_variant_decomposition p' rest) ->
+  exists v ann,
+    In (v, ann) candidates /\
+    firstn (length v) p = v /\
+    is_variant_decomposition (skipn (length v) p) rest.
+Proof.
+  induction candidates as [|[v ann] cs IH]; intros p rest anns H IHmvp.
+  - discriminate.
+  - simpl in H.
+    destruct (pattern_eqb (firstn (length v) p) v) eqn:Epfx.
+    + apply pattern_eqb_eq in Epfx.
+      destruct (match_variant_pattern (skipn (length v) p) rest) as [anns'|] eqn:Emvp.
+      * injection H as Hanns.
+        exists v, ann. split.
+        -- left. reflexivity.
+        -- split. exact Epfx. exact (IHmvp _ _ Emvp).
+      * destruct (IH p rest anns H IHmvp) as [v' [ann' [Hin [Hpfx Hdecomp]]]].
+        exists v', ann'. split.
+        -- right. exact Hin.
+        -- split; assumption.
+    + destruct (IH p rest anns H IHmvp) as [v' [ann' [Hin [Hpfx Hdecomp]]]].
+      exists v', ann'. split.
+      -- right. exact Hin.
+      -- split; assumption.
+Qed.
+
+(** Main structural lemma: match_variant_pattern returning Some
+    implies the pattern decomposes into segments from the variant sets. *)
+
+Lemma match_variant_pattern_sound : forall p foot_vars anns,
+  match_variant_pattern p foot_vars = Some anns ->
+  is_variant_decomposition p foot_vars.
+Proof.
+  intros p foot_vars. revert p.
+  induction foot_vars as [|vs rest IH]; intros p anns H.
+  - simpl in H. destruct p; [injection H as _; reflexivity | discriminate].
+  - simpl in H. simpl.
+    exact (try_variants_sound vs p rest anns H IH).
+Qed.
+
+(** Annotation length equals the number of foot positions. *)
+
+Lemma match_variant_anns_length : forall p foot_vars anns,
+  match_variant_pattern p foot_vars = Some anns ->
+  length anns = length foot_vars.
+Proof.
+  intros p foot_vars. revert p.
+  induction foot_vars as [|vs rest IH]; intros p anns H.
+  - simpl in H. destruct p; [injection H as <-; reflexivity | discriminate].
+  - simpl in H.
+    revert H.
+    induction vs as [|[v0 ann0] cs0 IHcs]; intros H.
+    + discriminate.
+    + simpl in H.
+      destruct (pattern_eqb (firstn (length v0) p) v0) eqn:Epfx.
+      * destruct (match_variant_pattern (skipn (length v0) p) rest) as [anns'|] eqn:Emvp.
+        -- injection H as <-. simpl. f_equal. exact (IH _ _ Emvp).
+        -- exact (IHcs H).
+      * exact (IHcs H).
+Qed.
+
+(** Helper: the try_meters loop in scan. If it returns ScanVariant,
+    then match_variant_pattern succeeded for that meter. *)
+
+Lemma try_meters_sound : forall ms p m anns,
+  (fix try_meters (ms : list meter) : scan_result :=
+    match ms with
+    | [] => ScanFailed
+    | m :: ms' =>
+        match match_variant_pattern p (meter_foot_variants m) with
+        | Some anns => ScanVariant m anns
+        | None => try_meters ms'
+        end
+    end) ms = ScanVariant m anns ->
+  In m ms /\
+  match_variant_pattern p (meter_foot_variants m) = Some anns.
+Proof.
+  induction ms as [|m0 ms' IH]; intros p m anns H.
+  - discriminate.
+  - simpl in H.
+    destruct (match_variant_pattern p (meter_foot_variants m0)) as [anns0|] eqn:Emvp.
+    + injection H as <- <-.
+      split. left. reflexivity. exact Emvp.
+    + destruct (IH p m anns H) as [Hin Hmvp].
+      split. right. exact Hin. exact Hmvp.
+Qed.
+
+(** ** Scansion Soundness Theorem *)
+
+(** If scan returns ScanVariant m anns, then:
+    1. m is a valid meter (In m all_meters).
+    2. The pattern decomposes foot-by-foot into legal variants of m.
+    3. The annotations have the same length as the number of feet. *)
+
+Theorem scan_sound : forall p m anns,
+  scan p = ScanVariant m anns ->
+  In m all_meters /\
+  match_variant_pattern p (meter_foot_variants m) = Some anns /\
+  is_variant_decomposition p (meter_foot_variants m) /\
+  length anns = length (meter_foot_variants m).
+Proof.
+  intros p m anns H.
+  unfold scan in H.
+  destruct (pattern_to_meter p) as [m0|] eqn:Eptm.
+  - discriminate.
+  - destruct (try_meters_sound all_meters p m anns H) as [Hin Hmvp].
+    split. exact Hin.
+    split. exact Hmvp.
+    split.
+    + exact (match_variant_pattern_sound p _ anns Hmvp).
+    + exact (match_variant_anns_length p _ anns Hmvp).
+Qed.
+
+(** Corollary: ScanSuccess implies exact meter match. *)
+
+Theorem scan_exact_sound : forall p m,
+  scan p = ScanSuccess m ->
+  pattern_to_meter p = Some m.
+Proof.
+  intros p m H. unfold scan in H.
+  destruct (pattern_to_meter p) as [m0|] eqn:Eptm.
+  - inversion H as [Hm]. subst m0. reflexivity.
+  - (* The try_meters loop only returns ScanVariant or ScanFailed, never ScanSuccess. *)
+    exfalso.
+    assert (Hloop :
+      forall ms, (fix try_meters (ms0 : list meter) : scan_result :=
+        match ms0 with
+        | [] => ScanFailed
+        | m1 :: ms' =>
+            match match_variant_pattern p (meter_foot_variants m1) with
+            | Some anns => ScanVariant m1 anns
+            | None => try_meters ms'
+            end
+        end) ms <> ScanSuccess m).
+    { induction ms as [|m1 ms' IHms]; intros Habs.
+      - discriminate.
+      - simpl in Habs.
+        destruct (match_variant_pattern p (meter_foot_variants m1));
+          [discriminate | exact (IHms Habs)]. }
+    exact (Hloop all_meters H).
+Qed.
 
 (** ** Hemistich Repetition *)
 
