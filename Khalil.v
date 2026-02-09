@@ -4463,6 +4463,35 @@ Definition apply_zihaf (z : zihaf) : pattern -> option pattern :=
   | Shamm => apply_shamm
   end.
 
+(** Compound zihāf dispatch function. *)
+Definition apply_compound_zihaf (z : compound_zihaf) : pattern -> option pattern :=
+  match z with
+  | Khazl => apply_khazl
+  | Khabl => apply_khabl
+  | Shakl => apply_shakl
+  | Naqs => apply_naqs
+  end.
+
+(** ʿIlla dispatch function. Uses guarded variants of qaṭʿ, ḥadhf,
+    and kashf to enforce traditional preconditions (watad/sabab ending)
+    at the pattern level. *)
+Definition apply_ʿilla (i : ʿilla) : pattern -> option pattern :=
+  match i with
+  | Qaṭʿ => apply_qaṭʿ_guarded
+  | Qaṣr => apply_qaṣr
+  | Ḥadhf => apply_ḥadhf_guarded
+  | Tasbīgh => apply_tasbīgh
+  | Batr => apply_batr
+  | Qaṭf => apply_qaṭf
+  | Tarfīl => apply_tarfīl
+  | Tadhyīl => apply_tadhyīl
+  | Ḥadhādh => apply_ḥadhādh
+  | Ṣalm => apply_ṣalm
+  | Kashf => apply_kashf_guarded
+  | Waqf => apply_waqf
+  | Tashʿīth => apply_tashʿīth
+  end.
+
 (** The claim "no variation produces a canonical foot" is ALMOST true.
     There are exactly three exceptions:
     - ʿaṣb on mufāʿalatun produces mafāʿīlun. This is well-known in the
@@ -4739,12 +4768,7 @@ Definition is_legal_compound_at (m : meter) (pos : nat) (z : compound_zihaf) : b
 (** ** Compound Zihāf Applicability *)
 
 Definition compound_zihaf_applies_to (z : compound_zihaf) (f : foot) : bool :=
-  match (match z with
-         | Khazl => apply_khazl
-         | Khabl => apply_khabl
-         | Shakl => apply_shakl
-         | Naqs => apply_naqs
-         end) (foot_pattern f) with
+  match apply_compound_zihaf z (foot_pattern f) with
   | Some _ => true
   | None => false
   end.
@@ -4968,96 +4992,146 @@ Example scan_exact_counterexample :
   scan_exact [] = ScanFailed.
 Proof. reflexivity. Qed.
 
-(** ** Per-Foot Variation Matching *)
+(** ** Combinatorial Scansion *)
 
-(** Generate all single-foot variant patterns of a meter by applying a
-    variation function to each foot independently. For a meter with feet
-    [F1; F2; F3], this produces up to three patterns: one where F1 is
-    varied, one where F2 is varied, and one where F3 is varied. *)
+(** For each foot, compute all legal variants at a ḥashw (interior)
+    position: canonical pattern plus results of applying legal simple
+    and compound zihāf. *)
 
-Fixpoint single_foot_variants_aux
-  (vary : pattern -> option pattern)
-  (prefix : pattern) (fs : list foot) : list pattern :=
-  match fs with
-  | [] => []
-  | f :: rest =>
-      let suffix := concat (map foot_pattern rest) in
-      match vary (foot_pattern f) with
-      | Some p' =>
-          (prefix ++ p' ++ suffix) ::
-          single_foot_variants_aux vary (prefix ++ foot_pattern f) rest
-      | None =>
-          single_foot_variants_aux vary (prefix ++ foot_pattern f) rest
+Definition foot_hashw_variants (f : foot) : list pattern :=
+  foot_pattern f ::
+  flat_map (fun z =>
+    match apply_zihaf z (foot_pattern f) with
+    | Some p => [p]
+    | None => []
+    end) (foot_permitted_zihaf f) ++
+  flat_map (fun z =>
+    match apply_compound_zihaf z (foot_pattern f) with
+    | Some p => [p]
+    | None => []
+    end) (foot_permitted_compound f).
+
+(** For the terminal foot, compute all legal variants: canonical
+    pattern, legal zihāf (simple and compound), and legal ʿilla from
+    both ʿarūḍ and ḍarb lists. Including zihāf at the terminal
+    position reflects real practice — many classical lines carry
+    zihāf at ʿarūḍ or ḍarb. *)
+
+Definition foot_terminal_variants (m : meter) : list pattern :=
+  let f := last (meter_feet m) Faulun in
+  foot_pattern f ::
+  flat_map (fun z =>
+    match apply_zihaf z (foot_pattern f) with
+    | Some p => [p]
+    | None => []
+    end) (foot_permitted_zihaf f) ++
+  flat_map (fun z =>
+    match apply_compound_zihaf z (foot_pattern f) with
+    | Some p => [p]
+    | None => []
+    end) (foot_permitted_compound f) ++
+  flat_map (fun i =>
+    match apply_ʿilla i (foot_pattern f) with
+    | Some p => [p]
+    | None => []
+    end) (permitted_arud_illa m ++ permitted_darb_illa m).
+
+(** Assemble the per-foot variant lists for a meter: ḥashw variants
+    for interior feet, terminal variants for the last foot. *)
+
+Definition meter_foot_variants (m : meter) : list (list pattern) :=
+  let feet := meter_feet m in
+  let init := removelast feet in
+  map foot_hashw_variants init ++ [foot_terminal_variants m].
+
+(** Recursive foot-by-foot matching. Instead of building the full
+    Cartesian product (which is too large for kernel reduction), we
+    try each variant for the current foot: if the input prefix matches,
+    recurse on the suffix against the remaining feet. Early pruning
+    from failed prefix matches keeps this efficient. *)
+
+Fixpoint match_variant_pattern
+  (p : pattern) (foot_vars : list (list pattern)) : bool :=
+  match foot_vars with
+  | [] => match p with [] => true | _ => false end
+  | vs :: rest =>
+      existsb (fun v =>
+        pattern_eqb (firstn (length v) p) v &&
+        match_variant_pattern (skipn (length v) p) rest
+      ) vs
+  end.
+
+(** Full scansion: try exact match first, then combinatorial variant
+    matching across all meters using foot-by-foot decomposition. *)
+
+Definition scan (p : pattern) : scan_result :=
+  match pattern_to_meter p with
+  | Some m => ScanSuccess m
+  | None =>
+      match find (fun m =>
+        match_variant_pattern p (meter_foot_variants m))
+        all_meters with
+      | Some m => ScanVariant m
+      | None => ScanFailed
       end
   end.
 
-Definition single_foot_variants
-  (vary : pattern -> option pattern) (m : meter) : list pattern :=
-  single_foot_variants_aux vary [] (meter_feet m).
-
-(** All simple and compound variation functions for per-foot scanning. *)
-
-Definition all_variation_fns : list (pattern -> option pattern) :=
-  [apply_khabn; apply_tayy; apply_qabḍ; apply_kaff;
-   apply_waqṣ; apply_ʿaṣb; apply_iḍmār; apply_ʿaql; apply_shamm;
-   apply_khazl; apply_khabl; apply_shakl; apply_naqs].
-
-(** Try to match a pattern against a meter after applying any single
-    zihāf (simple or compound) to each foot position independently.
-    Returns ScanVariant if any single-foot variant matches. *)
-
-Definition try_zihaf_variant (p : pattern) : scan_result :=
-  match find (fun m =>
-    existsb (fun vary =>
-      existsb (pattern_eqb p) (single_foot_variants vary m))
-    all_variation_fns)
-    all_meters with
-  | Some m => ScanVariant m
-  | None => ScanFailed
-  end.
-
-(** Full scansion: try exact match first, then any single-foot zihāf *)
-Definition scan (p : pattern) : scan_result :=
-  match scan_exact p with
-  | ScanFailed => try_zihaf_variant p
-  | result => result
-  end.
-
-(** Witness: exact match still works through scan *)
+(** Witness: exact match still works through scan. *)
 Example scan_witness :
   scan (meter_pattern Tawil) = ScanSuccess Tawil.
-Proof. reflexivity. Qed.
+Proof. vm_compute. reflexivity. Qed.
 
-(** Example: khabn variant of Rajaz detected on the first foot. *)
+(** Example: khabl on the first foot of Rajaz — khabl is unique to
+    mustafʿilun, disambiguating from Kāmil (whose mutafāʿilun admits
+    iḍmār/waqṣ/khazl but not khabl). *)
 Example scan_variant_example :
-  scan [Short; Long; Short; Long; Long; Long; Short; Long; Long; Long; Short; Long]
+  scan [Short; Short; Short; Long;
+        Long; Long; Short; Long;
+        Long; Long; Short; Long]
     = ScanVariant Rajaz.
-Proof. reflexivity. Qed.
+Proof. vm_compute. reflexivity. Qed.
 
-(** Example: per-foot detection — khabn on the third foot of Rajaz.
-    Whole-meter khabn could only vary the first foot; per-foot matching
-    detects variation at any position. *)
+(** Example: khabl on the third (terminal) foot of Rajaz. *)
 Example scan_perfoot_example :
-  scan [Long; Long; Short; Long; Long; Long; Short; Long; Short; Long; Short; Long]
+  scan [Long; Long; Short; Long;
+        Long; Long; Short; Long;
+        Short; Short; Short; Long]
     = ScanVariant Rajaz.
-Proof. reflexivity. Qed.
+Proof. vm_compute. reflexivity. Qed.
 
-(** Example: tayy variant on the second foot of Rajaz detected. *)
-Example scan_tayy_variant :
-  scan [Long; Long; Short; Long; Long; Short; Short; Long; Long; Long; Short; Long]
+(** Example: khabn on the first foot — the combinatorial scanner
+    correctly detects that this matches Kāmil (via waqṣ) before
+    Rajaz (via khabn), revealing a real prosodic ambiguity. *)
+Example scan_ambiguity_example :
+  scan [Short; Long; Short; Long;
+        Long; Long; Short; Long;
+        Long; Long; Short; Long]
+    = ScanVariant Kamil.
+Proof. vm_compute. reflexivity. Qed.
+
+(** Example: multi-foot simultaneous variation — khabl on foot 1
+    and tayy on foot 2 of Rajaz. The combinatorial scanner handles
+    multi-foot variation that single-foot scanning misses. *)
+Example scan_multi_foot_example :
+  scan [Short; Short; Short; Long;
+        Long; Short; Short; Long;
+        Long; Long; Short; Long]
     = ScanVariant Rajaz.
-Proof. reflexivity. Qed.
+Proof. vm_compute. reflexivity. Qed.
 
-(** Example: compound zihāf (khabl) on the first foot of Rajaz detected. *)
-Example scan_khabl_variant :
-  scan [Short; Short; Short; Long; Long; Long; Short; Long; Long; Long; Short; Long]
+(** Example: ʿilla at the terminal position — qaṭʿ on the last
+    foot of Rajaz (mustafʿilun → [L;L;L]). *)
+Example scan_illa_example :
+  scan [Long; Long; Short; Long;
+        Long; Long; Short; Long;
+        Long; Long; Long]
     = ScanVariant Rajaz.
-Proof. reflexivity. Qed.
+Proof. vm_compute. reflexivity. Qed.
 
-(** Counterexample: gibberish still fails *)
+(** Counterexample: gibberish still fails. *)
 Example scan_counterexample :
   scan [Short; Short; Short] = ScanFailed.
-Proof. reflexivity. Qed.
+Proof. vm_compute. reflexivity. Qed.
 
 (** ** Hemistich Repetition *)
 
