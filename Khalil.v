@@ -248,6 +248,28 @@ Proof.
   repeat split; reflexivity.
 Qed.
 
+(** ** Mora Count *)
+
+(** In Khalil's system, Short = 1 mora (light), Long = 2 morae (heavy). *)
+
+Definition weight_morae (w : weight) : nat :=
+  match w with
+  | Short => 1
+  | Long => 2
+  end.
+
+Fixpoint pattern_morae (p : pattern) : nat :=
+  match p with
+  | [] => 0
+  | w :: rest => weight_morae w + pattern_morae rest
+  end.
+
+Example pattern_morae_example : pattern_morae [Short; Long; Long] = 5.
+Proof. reflexivity. Qed.
+
+Example pattern_morae_empty : pattern_morae [] = 0.
+Proof. reflexivity. Qed.
+
 (** ** Weight Enumeration *)
 
 (** The type weight has exactly two inhabitants. *)
@@ -683,6 +705,145 @@ Fixpoint insert_at (n : nat) (new_l : letter) (ls : letter_seq) : letter_seq :=
   | [], _ => [new_l]
   | l :: rest, S n' => l :: insert_at n' new_l rest
   end.
+
+(** ** General sākin-deletion preserves syllable count *)
+
+(** Prepending a mutaḥarrik to a non-empty well-formed letter sequence
+    whose letters_to_pattern gives Some q yields Some (Short :: q). *)
+Lemma prepend_M_short : forall ls q,
+  wf_letter_seq ls = true ->
+  letters_to_pattern ls = Some q ->
+  ls <> [] ->
+  letters_to_pattern (Mutaharrik :: ls) = Some (Short :: q).
+Proof.
+  intros ls q Hwf Hconv Hne.
+  destruct ls as [|l ls']; [contradiction|].
+  destruct l.
+  - rewrite letters_to_pattern_cons_M_M. rewrite Hconv. reflexivity.
+  - simpl in Hwf. discriminate.
+Qed.
+
+(** Deleting a sākin from the letter representation of any pattern
+    produces a pattern of the same length. Every sākin in a well-formed
+    letter sequence is preceded by a mutaḥarrik (forming a Long syllable);
+    deleting the sākin turns that Long into Short, preserving count. *)
+Lemma delete_sakin_preserves_count : forall p i,
+  nth_error (pattern_to_letters p) i = Some Sakin ->
+  exists p', letters_to_pattern (delete_at i (pattern_to_letters p)) = Some p' /\
+             length p' = length p.
+Proof.
+  induction p as [|w p_tail IH]; intros i Hi.
+  - simpl in Hi. destruct i; discriminate.
+  - destruct w.
+    + (* Short: pattern_to_letters = M :: pattern_to_letters p_tail *)
+      change (pattern_to_letters (Short :: p_tail))
+        with (Mutaharrik :: pattern_to_letters p_tail) in *.
+      destruct i as [|i'].
+      * simpl in Hi. discriminate.
+      * simpl in Hi.
+        destruct (IH i' Hi) as [q [Hq Hqlen]].
+        assert (Hwf : wf_letter_seq (delete_at i' (pattern_to_letters p_tail)) = true).
+        { exact (some_implies_wf_letter_seq _ q Hq). }
+        assert (Hne : delete_at i' (pattern_to_letters p_tail) <> []).
+        { intro Hempty. rewrite Hempty in Hq. simpl in Hq. injection Hq as <-.
+          simpl in Hqlen. symmetry in Hqlen.
+          apply length_zero_iff_nil in Hqlen. subst p_tail.
+          simpl in Hi. destruct i'; discriminate. }
+        assert (Hpre : letters_to_pattern
+          (Mutaharrik :: delete_at i' (pattern_to_letters p_tail)) = Some (Short :: q)).
+        { exact (prepend_M_short _ q Hwf Hq Hne). }
+        change (delete_at (S i') (Mutaharrik :: pattern_to_letters p_tail))
+          with (Mutaharrik :: delete_at i' (pattern_to_letters p_tail)).
+        exists (Short :: q). split. exact Hpre. simpl. lia.
+    + (* Long: pattern_to_letters = M :: S :: pattern_to_letters p_tail *)
+      change (pattern_to_letters (Long :: p_tail))
+        with (Mutaharrik :: Sakin :: pattern_to_letters p_tail) in *.
+      destruct i as [|i'].
+      * simpl in Hi. discriminate.
+      * destruct i' as [|i''].
+        -- (* i = 1: deleting the S in this Long syllable *)
+           change (delete_at 1 (Mutaharrik :: Sakin :: pattern_to_letters p_tail))
+             with (Mutaharrik :: pattern_to_letters p_tail).
+           assert (Hwf_pt : wf_letter_seq (pattern_to_letters p_tail) = true)
+             by (apply pattern_to_letters_wf).
+           assert (Hrt : letters_to_pattern (pattern_to_letters p_tail) = Some p_tail)
+             by (apply pattern_letters_roundtrip).
+           destruct (pattern_to_letters p_tail) as [|l ls'] eqn:Ept.
+           ++ simpl. exists [Short]. split. reflexivity.
+              destruct p_tail; [reflexivity | simpl in Ept; destruct w; discriminate].
+           ++ assert (Hl : l = Mutaharrik) by (exact (pattern_to_letters_hd _ _ _ Ept)).
+              subst l.
+              rewrite letters_to_pattern_cons_M_M. rewrite Hrt.
+              exists (Short :: p_tail). split. reflexivity. reflexivity.
+        -- (* i >= 2: sākin is in p_tail's letters *)
+           change (nth_error (Mutaharrik :: Sakin :: pattern_to_letters p_tail) (S (S i'')))
+             with (nth_error (pattern_to_letters p_tail) i'') in Hi.
+           destruct (IH i'' Hi) as [q [Hq Hqlen]].
+           change (delete_at (S (S i'')) (Mutaharrik :: Sakin :: pattern_to_letters p_tail))
+             with (Mutaharrik :: Sakin :: delete_at i'' (pattern_to_letters p_tail)).
+           rewrite letters_to_pattern_cons_M_S. rewrite Hq.
+           exists (Long :: q). split. reflexivity. simpl. lia.
+Qed.
+
+(** Deleting a sākin reduces mora count by exactly 1 (Long → Short = -1 mora). *)
+Lemma delete_sakin_reduces_morae : forall p i,
+  nth_error (pattern_to_letters p) i = Some Sakin ->
+  exists p', letters_to_pattern (delete_at i (pattern_to_letters p)) = Some p' /\
+             S (pattern_morae p') = pattern_morae p.
+Proof.
+  induction p as [|w p_tail IH]; intros i Hi.
+  - simpl in Hi. destruct i; discriminate.
+  - destruct w.
+    + (* Short *)
+      change (pattern_to_letters (Short :: p_tail))
+        with (Mutaharrik :: pattern_to_letters p_tail) in *.
+      destruct i as [|i'].
+      * simpl in Hi. discriminate.
+      * simpl in Hi.
+        destruct (IH i' Hi) as [q [Hq Hqmor]].
+        assert (Hwf : wf_letter_seq (delete_at i' (pattern_to_letters p_tail)) = true).
+        { exact (some_implies_wf_letter_seq _ q Hq). }
+        assert (Hne : delete_at i' (pattern_to_letters p_tail) <> []).
+        { intro Hempty. rewrite Hempty in Hq. simpl in Hq. injection Hq as Hq'.
+          subst q.
+          destruct (delete_sakin_preserves_count p_tail i' Hi) as [q2 [Hq2 Hq2len]].
+          rewrite Hempty in Hq2. simpl in Hq2. injection Hq2 as <-.
+          simpl in Hq2len. symmetry in Hq2len.
+          apply length_zero_iff_nil in Hq2len. subst p_tail.
+          simpl in Hi. destruct i'; discriminate. }
+        assert (Hpre : letters_to_pattern
+          (Mutaharrik :: delete_at i' (pattern_to_letters p_tail)) = Some (Short :: q)).
+        { exact (prepend_M_short _ q Hwf Hq Hne). }
+        change (delete_at (S i') (Mutaharrik :: pattern_to_letters p_tail))
+          with (Mutaharrik :: delete_at i' (pattern_to_letters p_tail)).
+        exists (Short :: q). split. exact Hpre. simpl. lia.
+    + (* Long *)
+      change (pattern_to_letters (Long :: p_tail))
+        with (Mutaharrik :: Sakin :: pattern_to_letters p_tail) in *.
+      destruct i as [|i'].
+      * simpl in Hi. discriminate.
+      * destruct i' as [|i''].
+        -- (* i = 1: deleting the S in this Long syllable *)
+           change (delete_at 1 (Mutaharrik :: Sakin :: pattern_to_letters p_tail))
+             with (Mutaharrik :: pattern_to_letters p_tail).
+           assert (Hrt : letters_to_pattern (pattern_to_letters p_tail) = Some p_tail)
+             by (apply pattern_letters_roundtrip).
+           destruct (pattern_to_letters p_tail) as [|l ls'] eqn:Ept.
+           ++ simpl. exists [Short]. split. reflexivity.
+              destruct p_tail; [simpl; reflexivity | simpl in Ept; destruct w; discriminate].
+           ++ assert (Hl : l = Mutaharrik) by (exact (pattern_to_letters_hd _ _ _ Ept)).
+              subst l.
+              rewrite letters_to_pattern_cons_M_M. rewrite Hrt.
+              exists (Short :: p_tail). split. reflexivity. simpl. lia.
+        -- (* i >= 2 *)
+           change (nth_error (Mutaharrik :: Sakin :: pattern_to_letters p_tail) (S (S i'')))
+             with (nth_error (pattern_to_letters p_tail) i'') in Hi.
+           destruct (IH i'' Hi) as [q [Hq Hqmor]].
+           change (delete_at (S (S i'')) (Mutaharrik :: Sakin :: pattern_to_letters p_tail))
+             with (Mutaharrik :: Sakin :: delete_at i'' (pattern_to_letters p_tail)).
+           rewrite letters_to_pattern_cons_M_S. rewrite Hq.
+           exists (Long :: q). split. reflexivity. simpl. lia.
+Qed.
 
 (** End of Section 1b: Letter-Level Structure *)
 
@@ -3090,7 +3251,7 @@ Fixpoint apply_qaṣr (p : pattern) : option pattern :=
       end
   end.
 
-(** Ḥadhf: Drop final sabab (last syllable) *)
+(** Ḥadhf raw: Drop final syllable (used internally by drop_last_n). *)
 Fixpoint apply_ḥadhf (p : pattern) : option pattern :=
   match p with
   | [] => None
@@ -3291,6 +3452,64 @@ Proof. reflexivity. Qed.
 (** Counterexample: kashf fails on empty *)
 Example kashf_counterexample :
   apply_kashf [] = None.
+Proof. reflexivity. Qed.
+
+(** ** Guarded ʿilla operations with traditional preconditions *)
+
+(** Helper: check if a pattern ends with a specific syllable. *)
+Fixpoint ends_with (p : pattern) (w : weight) : bool :=
+  match p with
+  | [] => false
+  | [x] => weight_eqb x w
+  | _ :: rest => ends_with rest w
+  end.
+
+(** Ḥadhf (guarded): drop the final sabab khafīf.
+    Traditionally, ḥadhf only removes a final Long syllable. *)
+Definition apply_ḥadhf_guarded (p : pattern) : option pattern :=
+  if ends_with p Long then apply_ḥadhf p
+  else None.
+
+(** Qaṭʿ (guarded): operates on a final watad majmūʿ (Short; Long).
+    Drops the final syllable and makes the penultimate Long. *)
+Definition apply_qaṭʿ_guarded (p : pattern) : option pattern :=
+  if ends_with_watad_majmu p then apply_qaṭʿ p
+  else None.
+
+(** Kashf (guarded): drops the last letter of a final watad mafrūq.
+    Only applies when the pattern ends in watad mafrūq (Long; Short). *)
+Definition apply_kashf_guarded (p : pattern) : option pattern :=
+  if ends_with_watad_mafruq p then apply_ḥadhf p
+  else None.
+
+(** Guarded ḥadhf on faulun: faulun = [Short;Long;Long], ends with Long. *)
+Example ḥadhf_guarded_faulun :
+  apply_ḥadhf_guarded faulun = Some [Short; Long].
+Proof. reflexivity. Qed.
+
+(** Guarded ḥadhf rejects patterns ending in Short. *)
+Example ḥadhf_guarded_rejects_short :
+  apply_ḥadhf_guarded [Long; Short] = None.
+Proof. reflexivity. Qed.
+
+(** Guarded qaṭʿ on failun: failun = [Long;Short;Long], ends with watad majmūʿ. *)
+Example qaṭʿ_guarded_failun :
+  apply_qaṭʿ_guarded failun = Some [Long; Long].
+Proof. reflexivity. Qed.
+
+(** Guarded qaṭʿ rejects patterns not ending in watad majmūʿ. *)
+Example qaṭʿ_guarded_rejects :
+  apply_qaṭʿ_guarded [Long; Long; Long] = None.
+Proof. reflexivity. Qed.
+
+(** Guarded kashf on mafulatu: mafulatu = [Long;Long;Long;Short], ends with watad mafrūq. *)
+Example kashf_guarded_mafulatu :
+  apply_kashf_guarded mafulatu = Some [Long; Long; Long].
+Proof. reflexivity. Qed.
+
+(** Guarded kashf rejects patterns not ending in watad mafrūq. *)
+Example kashf_guarded_rejects :
+  apply_kashf_guarded [Long; Long; Long] = None.
 Proof. reflexivity. Qed.
 
 (** Waqf: make the last mutaḥarrik of watad mafrūq quiescent.
@@ -3994,30 +4213,141 @@ Proof.
   injection H as Hp. subst p'. rewrite app_length. simpl. lia.
 Qed.
 
-(** Deleting a sākin letter preserves syllable count on all applicable feet. *)
-Lemma khabn_preserves_count : forall f p,
-  apply_khabn (foot_pattern f) = Some p -> length p = foot_length f.
+(** Deleting a sākin letter preserves syllable count for any pattern.
+    These general lemmas replace the former per-foot destruct-f proofs. *)
+
+(** Helper: extract the sākin-deletion core from any apply function that
+    deletes a sākin at a fixed index. *)
+Lemma sākin_delete_preserves_count : forall p idx p',
+  nth_error (pattern_to_letters p) idx = Some Sakin ->
+  letters_to_pattern (delete_at idx (pattern_to_letters p)) = Some p' ->
+  length p' = length p.
+Proof.
+  intros p idx p' Hnth Hconv.
+  destruct (delete_sakin_preserves_count p idx Hnth) as [q [Hq Hqlen]].
+  rewrite Hq in Hconv. injection Hconv as <-. exact Hqlen.
+Qed.
+
+Lemma khabn_preserves_count : forall p p',
+  apply_khabn p = Some p' -> length p' = length p.
+Proof.
+  intros p p' H. unfold apply_khabn in H.
+  set (ls := pattern_to_letters p) in *.
+  destruct (nth_error ls 1) as [[|]|] eqn:E; try discriminate.
+  exact (sākin_delete_preserves_count p 1 p' E H).
+Qed.
+
+Lemma tayy_preserves_count : forall p p',
+  apply_tayy p = Some p' -> length p' = length p.
+Proof.
+  intros p p' H. unfold apply_tayy in H.
+  set (ls := pattern_to_letters p) in *.
+  destruct (nth_error ls 3) as [[|]|] eqn:E; try discriminate.
+  exact (sākin_delete_preserves_count p 3 p' E H).
+Qed.
+
+Lemma qabḍ_preserves_count : forall p p',
+  apply_qabḍ p = Some p' -> length p' = length p.
+Proof.
+  intros p p' H. unfold apply_qabḍ in H.
+  set (ls := pattern_to_letters p) in *.
+  destruct (nth_error ls 4) as [[|]|] eqn:E; try discriminate.
+  exact (sākin_delete_preserves_count p 4 p' E H).
+Qed.
+
+Lemma kaff_preserves_count : forall p p',
+  apply_kaff p = Some p' -> length p' = length p.
+Proof.
+  intros p p' H. unfold apply_kaff in H.
+  set (ls := pattern_to_letters p) in *.
+  destruct (nth_error ls 6) as [[|]|] eqn:E; try discriminate.
+  exact (sākin_delete_preserves_count p 6 p' E H).
+Qed.
+
+(** ** Mora-count properties of sākin-deleting zihāf *)
+
+(** Helper: extract the sākin-deletion mora core. *)
+Lemma sākin_delete_reduces_morae : forall p idx p',
+  nth_error (pattern_to_letters p) idx = Some Sakin ->
+  letters_to_pattern (delete_at idx (pattern_to_letters p)) = Some p' ->
+  S (pattern_morae p') = pattern_morae p.
+Proof.
+  intros p idx p' Hnth Hconv.
+  destruct (delete_sakin_reduces_morae p idx Hnth) as [q [Hq Hqmor]].
+  rewrite Hq in Hconv. injection Hconv as <-. exact Hqmor.
+Qed.
+
+Lemma khabn_reduces_morae : forall p p',
+  apply_khabn p = Some p' -> S (pattern_morae p') = pattern_morae p.
+Proof.
+  intros p p' H. unfold apply_khabn in H.
+  set (ls := pattern_to_letters p) in *.
+  destruct (nth_error ls 1) as [[|]|] eqn:E; try discriminate.
+  exact (sākin_delete_reduces_morae p 1 p' E H).
+Qed.
+
+Lemma tayy_reduces_morae : forall p p',
+  apply_tayy p = Some p' -> S (pattern_morae p') = pattern_morae p.
+Proof.
+  intros p p' H. unfold apply_tayy in H.
+  set (ls := pattern_to_letters p) in *.
+  destruct (nth_error ls 3) as [[|]|] eqn:E; try discriminate.
+  exact (sākin_delete_reduces_morae p 3 p' E H).
+Qed.
+
+Lemma qabḍ_reduces_morae : forall p p',
+  apply_qabḍ p = Some p' -> S (pattern_morae p') = pattern_morae p.
+Proof.
+  intros p p' H. unfold apply_qabḍ in H.
+  set (ls := pattern_to_letters p) in *.
+  destruct (nth_error ls 4) as [[|]|] eqn:E; try discriminate.
+  exact (sākin_delete_reduces_morae p 4 p' E H).
+Qed.
+
+Lemma kaff_reduces_morae : forall p p',
+  apply_kaff p = Some p' -> S (pattern_morae p') = pattern_morae p.
+Proof.
+  intros p p' H. unfold apply_kaff in H.
+  set (ls := pattern_to_letters p) in *.
+  destruct (nth_error ls 6) as [[|]|] eqn:E; try discriminate.
+  exact (sākin_delete_reduces_morae p 6 p' E H).
+Qed.
+
+(** ** Mora-count properties of mutaḥarrik-modifying zihāf *)
+
+(** Iḍmār, shamm, and ʿaṣb preserve morae: they make a mutaḥarrik
+    quiescent, merging two Shorts into one Long (1+1 = 2). *)
+Lemma iḍmār_preserves_morae : forall f p,
+  apply_iḍmār (foot_pattern f) = Some p -> pattern_morae p = pattern_morae (foot_pattern f).
 Proof.
   intros f p H. destruct f; simpl in H; try discriminate;
   injection H as Hp; subst p; reflexivity.
 Qed.
 
-Lemma tayy_preserves_count : forall f p,
-  apply_tayy (foot_pattern f) = Some p -> length p = foot_length f.
+Lemma shamm_preserves_morae : forall f p,
+  apply_shamm (foot_pattern f) = Some p -> pattern_morae p = pattern_morae (foot_pattern f).
 Proof.
   intros f p H. destruct f; simpl in H; try discriminate;
   injection H as Hp; subst p; reflexivity.
 Qed.
 
-Lemma qabḍ_preserves_count : forall f p,
-  apply_qabḍ (foot_pattern f) = Some p -> length p = foot_length f.
+Lemma ʿaṣb_preserves_morae : forall f p,
+  apply_ʿaṣb (foot_pattern f) = Some p -> pattern_morae p = pattern_morae (foot_pattern f).
 Proof.
   intros f p H. destruct f; simpl in H; try discriminate;
   injection H as Hp; subst p; reflexivity.
 Qed.
 
-Lemma kaff_preserves_count : forall f p,
-  apply_kaff (foot_pattern f) = Some p -> length p = foot_length f.
+(** Waqṣ and ʿaql delete a mutaḥarrik (Short syllable), reducing morae by 1. *)
+Lemma waqṣ_reduces_morae : forall f p,
+  apply_waqṣ (foot_pattern f) = Some p -> S (pattern_morae p) = pattern_morae (foot_pattern f).
+Proof.
+  intros f p H. destruct f; simpl in H; try discriminate;
+  injection H as Hp; subst p; reflexivity.
+Qed.
+
+Lemma ʿaql_reduces_morae : forall f p,
+  apply_ʿaql (foot_pattern f) = Some p -> S (pattern_morae p) = pattern_morae (foot_pattern f).
 Proof.
   intros f p H. destruct f; simpl in H; try discriminate;
   injection H as Hp; subst p; reflexivity.
