@@ -16,6 +16,20 @@
 (*                                                                            *)
 (******************************************************************************)
 
+(** Table of Contents:
+    - Section  1: Foundations (Short/Long syllables)
+    - Section  2: Letter-level structure (mutaḥarrik/sākin)
+    - Section  3: Building blocks (sabab, watad)
+    - Section  4: The eight tafāʿīl (feet) with decomposition
+    - Section  5: The sixteen buḥūr (meters)
+    - Section  6: The five dawāʾir (circles) with rotation
+    - Section  7: Variation rules (zihāf, ʿilla)
+    - Section  8: Foot positions and variation scope
+    - Section  9: Legal variation rules per meter
+    - Section 10: Scansion framework with variant detection
+    - Section 11: Rhyme (qāfiya) structure
+    - Section 12: Poem (qaṣīda) structure *)
+
 Require Import List Lia Bool Arith.
 Require Import Coq.Classes.DecidableClass.
 Import ListNotations.
@@ -338,7 +352,7 @@ Qed.
 
 (** End of Section 1: Foundations *)
 
-(** * Section 1b: Letter-Level Structure *)
+(** * Section 2: Letter-Level Structure *)
 
 (** In Khalil's system, variation rules (zihāf) operate on individual
     letters (ḥurūf) within a foot's mnemonic word, not on syllables
@@ -845,9 +859,9 @@ Proof.
            exists (Long :: q). split. reflexivity. simpl. lia.
 Qed.
 
-(** End of Section 1b: Letter-Level Structure *)
+(** End of Section 2: Letter-Level Structure *)
 
-(** * Section 2: Building Blocks *)
+(** * Section 3: Building Blocks *)
 
 (** In Khalil's terminology, syllable sequences are built from two primitives:
     - Sabab (سبب, "cord" or "guy-rope"): short sequences
@@ -1105,9 +1119,9 @@ Proof.
   apply Hnotin. left. reflexivity.
 Qed.
 
-(** End of Section 2: Building Blocks *)
+(** End of Section 3: Building Blocks *)
 
-(** * Section 3: The Eight Feet (Tafāʿīl) *)
+(** * Section 4: The Eight Feet (Tafāʿīl) *)
 
 (** The tafāʿīl (تفاعيل) are mnemonic words representing the canonical
     metrical feet. Each encodes a specific weight pattern. Khalil identified
@@ -1968,9 +1982,9 @@ Lemma foot_recognition_count :
   length (filter is_foot foot_length_patterns) = 8.
 Proof. reflexivity. Qed.
 
-(** End of Section 3: The Eight Feet *)
+(** End of Section 4: The Eight Feet *)
 
-(** * Section 4: The Sixteen Meters (Buḥūr) *)
+(** * Section 5: The Sixteen Meters (Buḥūr) *)
 
 (** The buḥūr (بحور, "seas") are the sixteen canonical meters of Arabic poetry.
     Each meter is defined by a specific sequence of feet. Khalil identified
@@ -2405,9 +2419,9 @@ Proof. reflexivity. Qed.
 Example khalil_original_counterexample : is_khalil_original Mutadarik = false.
 Proof. reflexivity. Qed.
 
-(** End of Section 4: The Sixteen Meters *)
+(** End of Section 5: The Sixteen Meters *)
 
-(** * Section 5: The Five Circles (Dawāʾir) *)
+(** * Section 6: The Five Circles (Dawāʾir) *)
 
 (** Khalil organized the meters into five circles (dawāʾir, دوائر), each
     grouping meters by their derivational relationships. Meters in the same
@@ -3108,9 +3122,9 @@ Proof.
   simpl in Hlen. discriminate.
 Qed.
 
-(** End of Section 5: The Five Circles *)
+(** End of Section 6: The Five Circles *)
 
-(** * Section 6: Variation Rules (Zihāf and ʿIlla) *)
+(** * Section 7: Variation Rules (Zihāf and ʿIlla) *)
 
 (** Arabic meters allow systematic modifications to the basic foot patterns.
     - Zihāf (زحاف): optional modifications that may occur in non-final feet
@@ -4517,9 +4531,9 @@ Example zihaf_foot_counterexample_shamm :
   exists p, apply_shamm mutafailun = Some p /\ is_foot p = true.
 Proof. exists mustafilun. split; reflexivity. Qed.
 
-(** End of Section 6: Variation Rules *)
+(** End of Section 7: Variation Rules *)
 
-(** * Section 6b: Foot Positions and Variation Scope *)
+(** * Section 8: Foot Positions and Variation Scope *)
 
 (** In a hemistich, feet occupy three positional roles:
     - Ḥashw (حشو, "stuffing"): all interior feet (not the last)
@@ -4653,9 +4667,237 @@ Proof.
   intros pos [H1 H2]. destruct pos; simpl in *; discriminate.
 Qed.
 
-(** End of Section 6b: Foot Positions and Variation Scope *)
+(** End of Section 8: Foot Positions and Variation Scope *)
 
-(** * Section 7: Scansion *)
+(** * Section 9: Legal Variation Rules Per Meter *)
+
+(** The tradition restricts which zihāf are considered legal for each
+    foot type, beyond the structural preconditions (which letter positions
+    have the right type). These rules reflect centuries of scholarly
+    consensus on which variations produce acceptable verse. *)
+
+(** ** Boolean Equality for Variation Types *)
+
+Definition zihaf_eqb (z1 z2 : zihaf) : bool :=
+  match zihaf_eq_dec z1 z2 with left _ => true | right _ => false end.
+
+Definition compound_zihaf_eqb (z1 z2 : compound_zihaf) : bool :=
+  match compound_zihaf_eq_dec z1 z2 with left _ => true | right _ => false end.
+
+Definition ʿilla_eqb (i1 i2 : ʿilla) : bool :=
+  match ʿilla_eq_dec i1 i2 with left _ => true | right _ => false end.
+
+(** ** Permitted Simple Zihāf by Foot Type *)
+
+(** Standard rules for ḥashw (interior) positions. Meter-specific
+    refinements (e.g., kaff on mafāʿīlun is rare in Ṭawīl) are
+    not yet modeled — these are the consensus per-foot-type rules. *)
+
+Definition foot_permitted_zihaf (f : foot) : list zihaf :=
+  match f with
+  | Faulun => [Qabḍ]
+  | Failun => [Khabn; Qabḍ]
+  | Mafailun => [Qabḍ; Kaff]
+  | Mustafilun => [Khabn; Tayy]
+  | Failatun => [Khabn; Kaff]
+  | Mafulatu => [Khabn; Tayy]
+  | Mutafailun => [Iḍmār; Waqṣ; Shamm]
+  | Mufaalatun => [ʿAṣb; ʿAql]
+  end.
+
+(** ** Permitted Compound Zihāf by Foot Type *)
+
+Definition foot_permitted_compound (f : foot) : list compound_zihaf :=
+  match f with
+  | Mustafilun => [Khabl]
+  | Failatun => [Shakl]
+  | Mutafailun => [Khazl]
+  | Mufaalatun => [Naqs]
+  | _ => []
+  end.
+
+(** ** Legality Predicates *)
+
+Definition is_legal_zihaf_for_foot (z : zihaf) (f : foot) : bool :=
+  existsb (zihaf_eqb z) (foot_permitted_zihaf f).
+
+Definition is_legal_compound_for_foot (z : compound_zihaf) (f : foot) : bool :=
+  existsb (compound_zihaf_eqb z) (foot_permitted_compound f).
+
+Definition is_legal_zihaf_at (m : meter) (pos : nat) (z : zihaf) : bool :=
+  match nth_error (meter_feet m) pos with
+  | Some f => is_legal_zihaf_for_foot z f
+  | None => false
+  end.
+
+Definition is_legal_compound_at (m : meter) (pos : nat) (z : compound_zihaf) : bool :=
+  match nth_error (meter_feet m) pos with
+  | Some f => is_legal_compound_for_foot z f
+  | None => false
+  end.
+
+(** ** Compound Zihāf Applicability *)
+
+Definition compound_zihaf_applies_to (z : compound_zihaf) (f : foot) : bool :=
+  match (match z with
+         | Khazl => apply_khazl
+         | Khabl => apply_khabl
+         | Shakl => apply_shakl
+         | Naqs => apply_naqs
+         end) (foot_pattern f) with
+  | Some _ => true
+  | None => false
+  end.
+
+(** ** Soundness: Every Permitted Zihāf Is Structurally Applicable *)
+
+(** No permitted zihāf is a dead letter — each one actually applies
+    to its designated foot. *)
+
+Lemma permitted_zihaf_applicable : forall f z,
+  is_legal_zihaf_for_foot z f = true ->
+  zihaf_applies_to z f = true.
+Proof.
+  intros f z H.
+  destruct f, z; simpl in *; try discriminate; reflexivity.
+Qed.
+
+Lemma permitted_compound_applicable : forall f z,
+  is_legal_compound_for_foot z f = true ->
+  compound_zihaf_applies_to z f = true.
+Proof.
+  intros f z H.
+  destruct f, z; simpl in *; try discriminate; reflexivity.
+Qed.
+
+(** The converse does not hold: structural applicability does not imply
+    traditional legality. Kaff applies to mustafilun (7th letter is sākin)
+    but is not traditionally permitted. *)
+Example applicable_not_legal :
+  zihaf_applies_to Kaff Mustafilun = true /\
+  is_legal_zihaf_for_foot Kaff Mustafilun = false.
+Proof. split; reflexivity. Qed.
+
+(** ** Permitted ʿIlla at Terminal Positions *)
+
+(** ʿIlla at ʿarūḍ (last foot of first hemistich) for each meter.
+    These follow the standard classical sources; some meters have no
+    ʿilla at ʿarūḍ (the foot appears in its canonical form). *)
+
+Definition permitted_arud_illa (m : meter) : list ʿilla :=
+  match m with
+  | Tawil => [Ḥadhf; Qaṣr]
+  | Madid => [Ḥadhf]
+  | Basit => []
+  | Wafir => [Qaṭf]
+  | Kamil => []
+  | Hazaj => [Ḥadhf]
+  | Rajaz => []
+  | Ramal => [Ḥadhf]
+  | Sari => [Kashf]
+  | Munsarih => []
+  | Khafif => []
+  | Mudari => []
+  | Muqtadab => []
+  | Mujtathth => []
+  | Mutaqarib => [Ḥadhf]
+  | Mutadarik => []
+  end.
+
+(** ʿIlla at ḍarb (last foot of second hemistich) for each meter.
+    The ḍarb admits more variation than the ʿarūḍ in most meters. *)
+
+Definition permitted_darb_illa (m : meter) : list ʿilla :=
+  match m with
+  | Tawil => [Ḥadhf; Qaṣr; Qaṭʿ]
+  | Madid => [Ḥadhf; Qaṣr; Qaṭʿ; Batr]
+  | Basit => [Qaṭʿ]
+  | Wafir => [Qaṭf; Ḥadhf]
+  | Kamil => [Qaṭʿ; Ḥadhādh]
+  | Hazaj => [Ḥadhf; Qaṣr]
+  | Rajaz => [Qaṭʿ]
+  | Ramal => [Ḥadhf; Qaṣr; Qaṭʿ; Tasbīgh]
+  | Sari => [Kashf; Waqf; Ṣalm]
+  | Munsarih => [Qaṭʿ]
+  | Khafif => [Qaṣr; Qaṭʿ; Tasbīgh]
+  | Mudari => [Qaṣr]
+  | Muqtadab => [Qaṭʿ]
+  | Mujtathth => [Qaṣr; Qaṭʿ]
+  | Mutaqarib => [Ḥadhf; Qaṣr; Qaṭʿ; Batr]
+  | Mutadarik => [Qaṭʿ; Tashʿīth]
+  end.
+
+Definition is_legal_arud_illa (m : meter) (i : ʿilla) : bool :=
+  existsb (ʿilla_eqb i) (permitted_arud_illa m).
+
+Definition is_legal_darb_illa (m : meter) (i : ʿilla) : bool :=
+  existsb (ʿilla_eqb i) (permitted_darb_illa m).
+
+(** ** Witnesses *)
+
+(** Khabn is legal for mustafilun. *)
+Example legal_khabn_mustafilun :
+  is_legal_zihaf_for_foot Khabn Mustafilun = true.
+Proof. reflexivity. Qed.
+
+(** Qabḍ is legal for faulun. *)
+Example legal_qabḍ_faulun :
+  is_legal_zihaf_for_foot Qabḍ Faulun = true.
+Proof. reflexivity. Qed.
+
+(** Khabn is NOT legal for faulun (2nd letter is mutaḥarrik, and the
+    tradition does not list khabn for faʿūlun). *)
+Example illegal_khabn_faulun :
+  is_legal_zihaf_for_foot Khabn Faulun = false.
+Proof. reflexivity. Qed.
+
+(** Khabl (compound) is legal for mustafilun. *)
+Example legal_khabl_mustafilun :
+  is_legal_compound_for_foot Khabl Mustafilun = true.
+Proof. reflexivity. Qed.
+
+(** Khabn at position 0 of Rajaz (mustafilun) is legal. *)
+Example legal_khabn_rajaz_pos0 :
+  is_legal_zihaf_at Rajaz 0 Khabn = true.
+Proof. reflexivity. Qed.
+
+(** Qabḍ at position 0 of Rajaz (mustafilun) is NOT legal. *)
+Example illegal_qabḍ_rajaz_pos0 :
+  is_legal_zihaf_at Rajaz 0 Qabḍ = false.
+Proof. reflexivity. Qed.
+
+(** Ḥadhf is legal at ʿarūḍ of Ṭawīl. *)
+Example legal_ḥadhf_tawil_arud :
+  is_legal_arud_illa Tawil Ḥadhf = true.
+Proof. reflexivity. Qed.
+
+(** Qaṭʿ is legal at ḍarb of Kāmil. *)
+Example legal_qaṭʿ_kamil_darb :
+  is_legal_darb_illa Kamil Qaṭʿ = true.
+Proof. reflexivity. Qed.
+
+(** Ḍarb admits more ʿilla than ʿarūḍ in most meters. *)
+Example darb_richer_than_arud :
+  length (permitted_darb_illa Ramal) > length (permitted_arud_illa Ramal).
+Proof. simpl. lia. Qed.
+
+(** Every foot has at least one permitted simple zihāf. *)
+Lemma every_foot_has_zihaf : forall f : foot,
+  foot_permitted_zihaf f <> [].
+Proof.
+  intros f. destruct f; discriminate.
+Qed.
+
+(** The number of permitted simple zihāf per foot is between 1 and 3. *)
+Lemma foot_zihaf_count_bounds : forall f : foot,
+  1 <= length (foot_permitted_zihaf f) <= 3.
+Proof.
+  intros f. destruct f; simpl; lia.
+Qed.
+
+(** End of Section 9: Legal Variation Rules Per Meter *)
+
+(** * Section 10: Scansion *)
 
 (** Scansion is the process of analyzing a verse to determine its metrical pattern.
     In a full implementation, this would involve:
@@ -4726,28 +4968,58 @@ Example scan_exact_counterexample :
   scan_exact [] = ScanFailed.
 Proof. reflexivity. Qed.
 
-(** ** Variant-Aware Scansion *)
+(** ** Per-Foot Variation Matching *)
 
-(** Try to match a pattern against a meter after applying a single khabn
-    or qabḍ variation to each foot position. Returns ScanVariant if a
-    modified meter pattern matches. *)
+(** Generate all single-foot variant patterns of a meter by applying a
+    variation function to each foot independently. For a meter with feet
+    [F1; F2; F3], this produces up to three patterns: one where F1 is
+    varied, one where F2 is varied, and one where F3 is varied. *)
 
-Definition try_khabn_variant (p : pattern) : scan_result :=
-  let try_meter m :=
-    match apply_khabn (meter_pattern m) with
-    | Some p' => pattern_eqb p p'
-    | None => false
-    end
-  in
-  match find (fun m => try_meter m) all_meters with
+Fixpoint single_foot_variants_aux
+  (vary : pattern -> option pattern)
+  (prefix : pattern) (fs : list foot) : list pattern :=
+  match fs with
+  | [] => []
+  | f :: rest =>
+      let suffix := concat (map foot_pattern rest) in
+      match vary (foot_pattern f) with
+      | Some p' =>
+          (prefix ++ p' ++ suffix) ::
+          single_foot_variants_aux vary (prefix ++ foot_pattern f) rest
+      | None =>
+          single_foot_variants_aux vary (prefix ++ foot_pattern f) rest
+      end
+  end.
+
+Definition single_foot_variants
+  (vary : pattern -> option pattern) (m : meter) : list pattern :=
+  single_foot_variants_aux vary [] (meter_feet m).
+
+(** All simple and compound variation functions for per-foot scanning. *)
+
+Definition all_variation_fns : list (pattern -> option pattern) :=
+  [apply_khabn; apply_tayy; apply_qabḍ; apply_kaff;
+   apply_waqṣ; apply_ʿaṣb; apply_iḍmār; apply_ʿaql; apply_shamm;
+   apply_khazl; apply_khabl; apply_shakl; apply_naqs].
+
+(** Try to match a pattern against a meter after applying any single
+    zihāf (simple or compound) to each foot position independently.
+    Returns ScanVariant if any single-foot variant matches. *)
+
+Definition try_zihaf_variant (p : pattern) : scan_result :=
+  match find (fun m =>
+    existsb (fun vary =>
+      existsb (pattern_eqb p) (single_foot_variants vary m))
+    all_variation_fns)
+    all_meters with
   | Some m => ScanVariant m
   | None => ScanFailed
   end.
 
-(** Full scansion: try exact match first, then khabn variant *)
+(** Full scansion: try exact match first, then any single-foot zihāf *)
 Definition scan (p : pattern) : scan_result :=
   match scan_exact p with
-  | ScanFailed => try_khabn_variant p
+  | ScanFailed => try_zihaf_variant p
   | result => result
   end.
 
@@ -4756,11 +5028,29 @@ Example scan_witness :
   scan (meter_pattern Tawil) = ScanSuccess Tawil.
 Proof. reflexivity. Qed.
 
-(** Example: khabn variant of Rajaz detected.
-    Rajaz starts with Long, so letters begin [M;S;...]. 2nd letter is S.
-    Khabn deletes it, re-syllabifying the first foot. *)
+(** Example: khabn variant of Rajaz detected on the first foot. *)
 Example scan_variant_example :
   scan [Short; Long; Short; Long; Long; Long; Short; Long; Long; Long; Short; Long]
+    = ScanVariant Rajaz.
+Proof. reflexivity. Qed.
+
+(** Example: per-foot detection — khabn on the third foot of Rajaz.
+    Whole-meter khabn could only vary the first foot; per-foot matching
+    detects variation at any position. *)
+Example scan_perfoot_example :
+  scan [Long; Long; Short; Long; Long; Long; Short; Long; Short; Long; Short; Long]
+    = ScanVariant Rajaz.
+Proof. reflexivity. Qed.
+
+(** Example: tayy variant on the second foot of Rajaz detected. *)
+Example scan_tayy_variant :
+  scan [Long; Long; Short; Long; Long; Short; Short; Long; Long; Long; Short; Long]
+    = ScanVariant Rajaz.
+Proof. reflexivity. Qed.
+
+(** Example: compound zihāf (khabl) on the first foot of Rajaz detected. *)
+Example scan_khabl_variant :
+  scan [Short; Short; Short; Long; Long; Long; Short; Long; Long; Long; Short; Long]
     = ScanVariant Rajaz.
 Proof. reflexivity. Qed.
 
@@ -4911,9 +5201,9 @@ Example scan_summary_counterexample :
   scan_summary [Short; Short; Short] = None.
 Proof. reflexivity. Qed.
 
-(** End of Section 7: Scansion *)
+(** End of Section 10: Scansion *)
 
-(** * Section 8: Rhyme (Qāfiya) *)
+(** * Section 11: Rhyme (Qāfiya) *)
 
 (** The qāfiya (قافية) is the rhyme at the end of each line. In Khalil's
     system, the rhyme is defined by the pattern of syllable weights at the
@@ -5063,9 +5353,9 @@ Example well_formed_counterexample2 :
   is_well_formed_rhyme [Dakhil; Tasis; Rawiy] = false.
 Proof. reflexivity. Qed.
 
-(** End of Section 8: Rhyme *)
+(** End of Section 11: Rhyme *)
 
-(** * Section 9: Poem Structure *)
+(** * Section 12: Poem Structure *)
 
 (** A poem (qaṣīda) consists of lines (abyāt, singular bayt). Each line
     has two hemistichs (shaṭr). All lines share the same meter and rhyme. *)
@@ -5269,20 +5559,9 @@ Example qasida_nonempty_witness :
   length (qasida_lines (mk_qasida (mk_annotated_bayt h h 1 1) [] Hazaj 1)) = 1.
 Proof. reflexivity. Qed.
 
-(** End of Section 9: Poem Structure *)
+(** End of Section 12: Poem Structure *)
 
 (** * Conclusion *)
 
-(** This formalization covers Khalil ibn Ahmad al-Farahidi's aruz system:
-    - Section 1: Weight foundations (Short/Long syllables)
-    - Section 2: Building blocks (sabab, watad)
-    - Section 3: The eight tafāʿīl (feet) with decomposition
-    - Section 4: The sixteen buḥūr (meters)
-    - Section 5: The five dawāʾir (circles) with rotation
-    - Section 6: Variation rules (zihāf, ʿilla)
-    - Section 7: Scansion framework with variant detection
-    - Section 8: Rhyme (qāfiya) structure
-    - Section 9: Poem (qaṣīda) structure
-
-    The original system dates to c. 760 CE and forms the foundation of
+(** The original system dates to c. 760 CE and forms the foundation of
     Arabic, Persian, Turkish, Kurdish, and Urdu prosody. *)
