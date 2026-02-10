@@ -8023,6 +8023,102 @@ Example amr_ajuz_taqtii :
           ([Short; Long; Long], Canonical)].
 Proof. vm_compute. reflexivity. Qed.
 
+(** ** Rumi's Masnavi — Song of the Reed (نی‌نامه) — Ramal meter *)
+
+(** The opening of the Masnavi-ye Ma'navi by Jalal ad-Din Muhammad Rumi
+    (1207-1273 CE), the most recognized passage in Sufi literature.
+    Ramal musaddas maḥdhūf: fāʿilātun fāʿilātun fāʿilun — canonical
+    fāʿilātun on the first two feet with ḥadhf (dropping the final
+    sabab khafīf) on the terminal foot. This extends the test suite
+    from Arabic to Persian prosody, demonstrating that Khalil's system
+    spans both traditions. *)
+
+(** Line 1: بشنو از نی چون حکایت می‌کند / از جدایی‌ها شکایت می‌کند *)
+(** "Listen to the reed, how it tells a tale, complaining of separations." *)
+
+Definition rumi_1_sadr : pattern :=
+  [Long; Short; Long; Long;
+   Long; Short; Long; Long;
+   Long; Short; Long].
+
+Definition rumi_1_ajuz : pattern :=
+  [Long; Short; Long; Long;
+   Long; Short; Long; Long;
+   Long; Short; Long].
+
+Example rumi_1_sadr_scan :
+  scan rumi_1_sadr =
+    ScanVariant Ramal [Canonical; Canonical; Illa Ḥadhf].
+Proof. vm_compute. reflexivity. Qed.
+
+Example rumi_1_ajuz_scan :
+  scan rumi_1_ajuz =
+    ScanVariant Ramal [Canonical; Canonical; Illa Ḥadhf].
+Proof. vm_compute. reflexivity. Qed.
+
+Example rumi_1_sadr_unambiguous :
+  scan_all rumi_1_sadr =
+    [(Ramal, [Canonical; Canonical; Illa Ḥadhf])].
+Proof. vm_compute. reflexivity. Qed.
+
+Example rumi_1_ajuz_unambiguous :
+  scan_all rumi_1_ajuz =
+    [(Ramal, [Canonical; Canonical; Illa Ḥadhf])].
+Proof. vm_compute. reflexivity. Qed.
+
+Example rumi_1_sadr_taqtii :
+  taqtii Ramal rumi_1_sadr =
+    Some [([Long; Short; Long; Long], Canonical);
+          ([Long; Short; Long; Long], Canonical);
+          ([Long; Short; Long], Illa Ḥadhf)].
+Proof. vm_compute. reflexivity. Qed.
+
+Example rumi_1_ajuz_taqtii :
+  taqtii Ramal rumi_1_ajuz =
+    Some [([Long; Short; Long; Long], Canonical);
+          ([Long; Short; Long; Long], Canonical);
+          ([Long; Short; Long], Illa Ḥadhf)].
+Proof. vm_compute. reflexivity. Qed.
+
+(** Line 2: کز نیستان تا مرا ببریده‌اند / در نفیرم مرد و زن نالیده‌اند *)
+(** "Ever since I was cut from the reedbed, man and woman have moaned
+    at my cry." *)
+
+Definition rumi_2_sadr : pattern :=
+  [Long; Short; Long; Long;
+   Long; Short; Long; Long;
+   Long; Short; Long].
+
+Definition rumi_2_ajuz : pattern :=
+  [Long; Short; Long; Long;
+   Long; Short; Long; Long;
+   Long; Short; Long].
+
+Example rumi_2_sadr_scan :
+  scan rumi_2_sadr =
+    ScanVariant Ramal [Canonical; Canonical; Illa Ḥadhf].
+Proof. vm_compute. reflexivity. Qed.
+
+Example rumi_2_ajuz_scan :
+  scan rumi_2_ajuz =
+    ScanVariant Ramal [Canonical; Canonical; Illa Ḥadhf].
+Proof. vm_compute. reflexivity. Qed.
+
+(** Both couplets scan identically: pure fāʿilātun on the interior feet,
+    ḥadhf at the terminal position. Rumi's Masnavi opening is metrically
+    pristine — no ḥashw variation across either line, demonstrating the
+    regularity that characterizes the didactic masnavi form. *)
+
+Example rumi_hemistich_valid :
+  is_valid_bayt
+    (mk_bayt rumi_1_sadr rumi_1_ajuz) Ramal = true.
+Proof. vm_compute. reflexivity. Qed.
+
+Example rumi_line2_valid :
+  is_valid_bayt
+    (mk_bayt rumi_2_sadr rumi_2_ajuz) Ramal = true.
+Proof. vm_compute. reflexivity. Qed.
+
 (** End of Section 13: Classical Verse Tests *)
 
 (** * Conclusion *)
