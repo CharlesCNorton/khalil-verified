@@ -2962,29 +2962,63 @@ Qed.
     as circles and read them off at different starting points. *)
 
 Definition rotate (n : nat) (p : pattern) : pattern :=
-  skipn n p ++ firstn n p.
+  match p with
+  | [] => []
+  | _ :: _ => skipn (n mod length p) p ++ firstn (n mod length p) p
+  end.
 
 (** *** Rotation Algebra *)
+
+(** When n < length p, rotate reduces to the raw skipn/firstn. *)
+Lemma rotate_bounded : forall n p,
+  n < length p ->
+  rotate n p = skipn n p ++ firstn n p.
+Proof.
+  intros n p Hn.
+  destruct p as [|w p']; [simpl in Hn; lia|].
+  unfold rotate. rewrite Nat.mod_small by assumption. reflexivity.
+Qed.
+
+(** Rotation is periodic: rotate n p = rotate (n mod length p) p. *)
+Lemma rotate_mod_eq : forall n p,
+  length p > 0 ->
+  rotate n p = rotate (n mod length p) p.
+Proof.
+  intros n p Hpos.
+  destruct p as [|w p']; [simpl in Hpos; lia|].
+  unfold rotate.
+  replace ((n mod length (w :: p')) mod length (w :: p'))
+    with (n mod length (w :: p'))
+    by (symmetry; apply Nat.mod_small; apply Nat.mod_upper_bound; discriminate).
+  reflexivity.
+Qed.
 
 (** Rotation by 0 is the identity. *)
 Lemma rotate_0 : forall p, rotate 0 p = p.
 Proof.
-  intros p. unfold rotate. simpl. apply app_nil_r.
+  intros p. destruct p as [|w p']; [reflexivity|].
+  rewrite rotate_bounded by (simpl; lia).
+  simpl. rewrite app_nil_r. reflexivity.
 Qed.
 
 (** Rotation by the length of the list is the identity. *)
 Lemma rotate_length : forall p, rotate (length p) p = p.
 Proof.
-  intros p. unfold rotate.
-  rewrite skipn_all, firstn_all. reflexivity.
+  intros p. destruct p as [|w p']; [reflexivity|].
+  unfold rotate. rewrite Nat.Div0.mod_same.
+  simpl. rewrite app_nil_r. reflexivity.
 Qed.
 
 (** Rotation preserves length. *)
 Lemma rotate_length_preserved : forall n p,
   length (rotate n p) = length p.
 Proof.
-  intros n p. unfold rotate.
-  rewrite app_length, skipn_length, firstn_length.
+  intros n p. destruct p as [|w p']; [reflexivity|].
+  unfold rotate.
+  set (k := n mod length (w :: p')).
+  assert (Hk : k < length (w :: p'))
+    by (unfold k; apply Nat.mod_upper_bound; discriminate).
+  rewrite app_length, skipn_length, firstn_length, Nat.min_l by lia.
   lia.
 Qed.
 
@@ -3046,13 +3080,44 @@ Lemma rotate_add : forall (n m : nat) (p : pattern),
   n <= length p -> n + m <= length p ->
   rotate m (rotate n p) = rotate (n + m) p.
 Proof.
-  intros n m p Hn Hnm. unfold rotate.
-  rewrite skipn_app_le by (rewrite skipn_length; lia).
-  rewrite firstn_app_le by (rewrite skipn_length; lia).
-  rewrite skipn_skipn.
-  rewrite <- app_assoc.
-  f_equal.
-  apply firstn_skipn_comm. exact Hnm.
+  intros n m p Hn Hnm.
+  destruct p as [|w p']; [destruct n; [destruct m; reflexivity | simpl in Hn; lia] |].
+  set (L := length (w :: p')) in *.
+  destruct (Nat.eq_dec n L) as [HnL|HnL].
+  - assert (m = 0) by lia. subst n m. replace (L + 0) with L by lia.
+    unfold L. rewrite rotate_length. apply rotate_0.
+  - assert (Hn' : n < L) by lia.
+    assert (HrLen : length (rotate n (w :: p')) = L)
+      by (rewrite rotate_length_preserved; reflexivity).
+    assert (Hm' : m <= L) by lia.
+    destruct (Nat.eq_dec m L) as [HmL|HmL].
+    + (* m = L, n = 0 *)
+      subst m. assert (n = 0) by lia. subst n.
+      rewrite rotate_0. replace (0 + L) with L by lia. reflexivity.
+    + assert (Hm'' : m < L) by lia.
+      destruct (Nat.eq_dec (n + m) L) as [HnmL|HnmL].
+      * (* n + m = L: RHS is rotate L p = p by rotate_length *)
+        replace (n + m) with L by lia. unfold L. rewrite rotate_length.
+        rewrite (rotate_bounded n) by (fold L; lia).
+        rewrite (rotate_bounded m)
+          by (rewrite app_length, skipn_length, firstn_length, Nat.min_l by (fold L; lia); fold L; lia).
+        rewrite skipn_app_le by (rewrite skipn_length; lia).
+        rewrite firstn_app_le by (rewrite skipn_length; lia).
+        rewrite skipn_skipn.
+        rewrite <- app_assoc.
+        rewrite firstn_skipn_comm by lia.
+        replace (n + m) with (length (w :: p')) by lia.
+        rewrite skipn_all. rewrite firstn_all. reflexivity.
+      * assert (Hnm' : n + m < L) by lia.
+        rewrite (rotate_bounded n) by lia.
+        rewrite (rotate_bounded m)
+          by (rewrite app_length, skipn_length, firstn_length, Nat.min_l by lia; lia).
+        rewrite (rotate_bounded (n + m)) by lia.
+        rewrite skipn_app_le by (rewrite skipn_length; lia).
+        rewrite firstn_app_le by (rewrite skipn_length; lia).
+        rewrite skipn_skipn.
+        rewrite <- app_assoc. f_equal.
+        apply firstn_skipn_comm. lia.
 Qed.
 
 (** Rotation by complement restores the original. *)
@@ -3076,42 +3141,54 @@ Proof.
   apply Nat.mod_small. lia.
 Qed.
 
-(** Full mod composition: rotate m after rotate n equals rotate ((n+m) mod length p). *)
+(** Full mod composition: rotate m after rotate n equals rotate ((n+m) mod length p).
+    No preconditions on n or m — the built-in mod in rotate handles all values. *)
 Lemma rotate_add_mod : forall n m p,
-  length p > 0 -> n <= length p -> m <= length p ->
+  length p > 0 ->
   rotate m (rotate n p) = rotate ((n + m) mod length p) p.
 Proof.
-  intros n m p Hpos Hn Hm.
-  destruct (Nat.le_gt_cases (n + m) (length p)) as [Hle|Hgt].
-  - (* n + m <= length p: use rotate_add *)
-    rewrite rotate_add by assumption.
-    destruct (Nat.eq_dec (n + m) (length p)) as [Heq|Hneq].
-    + rewrite Heq, Nat.mod_same by lia.
-      rewrite rotate_length. symmetry. apply rotate_0.
+  intros n m p Hpos.
+  set (L := length p).
+  set (n' := n mod L).
+  set (m' := m mod L).
+  assert (Hn' : n' < L) by (unfold n'; apply Nat.mod_upper_bound; lia).
+  assert (Hm' : m' < L) by (unfold m'; apply Nat.mod_upper_bound; lia).
+  (* rotate n p = rotate n' p *)
+  rewrite (rotate_mod_eq n p) by exact Hpos. fold L. fold n'.
+  (* rotate m' (rotate n' p) = rotate ((n'+m') mod L) p suffices,
+     because (n+m) mod L = (n'+m') mod L. *)
+  replace ((n + m) mod L) with ((n' + m') mod L)
+    by (unfold n', m'; rewrite <- Nat.Div0.add_mod; reflexivity).
+  (* rotate m (rotate n' p) = rotate m' (rotate n' p) *)
+  assert (HrLen : length (rotate n' p) = L)
+    by (unfold L; apply rotate_length_preserved).
+  rewrite (rotate_mod_eq m (rotate n' p)) by (rewrite HrLen; exact Hpos).
+  replace (m mod length (rotate n' p)) with m'
+    by (unfold m'; rewrite HrLen; reflexivity).
+  (* Now goal: rotate m' (rotate n' p) = rotate ((n'+m') mod L) p *)
+  (* Case split on n' + m' vs L *)
+  destruct (Nat.le_gt_cases (n' + m') L) as [Hle|Hgt].
+  - (* n' + m' <= L: use rotate_add *)
+    rewrite rotate_add by (unfold L; lia).
+    destruct (Nat.eq_dec (n' + m') L) as [Heq|Hneq].
+    + rewrite Heq. unfold L. rewrite rotate_length.
+      rewrite Nat.Div0.mod_same. symmetry. apply rotate_0.
     + rewrite Nat.mod_small by lia. reflexivity.
-  - (* n + m > length p: factor through complement *)
-    destruct (Nat.eq_dec (n + m) (2 * length p)) as [He2|Hne2].
-    + (* n = m = length p: both sides are p *)
-      assert (n = length p) by lia.
-      assert (m = length p) by lia.
-      subst n m.
-      rewrite rotate_length.
-      rewrite rotate_length.
-      replace (length p + length p) with (2 * length p) by lia.
-      rewrite Nat.Div0.mod_mul.
-      symmetry. apply rotate_0.
-    + set (k := n + m - length p).
-      assert (Hk: k < length p) by (unfold k; lia).
-      assert (Hm_split: m = (length p - n) + k) by (unfold k; lia).
-      assert (Hmod: (n + m) mod length p = k).
-      { assert (Hnm_eq: n + m = k + length p) by (unfold k; lia).
-        rewrite Hnm_eq. apply mod_add_once; lia. }
-      rewrite Hmod. rewrite Hm_split.
-      (* rotate (length p - n + k) (rotate n p) = rotate k p *)
-      rewrite <- (rotate_add (length p - n) k (rotate n p))
-        by (rewrite rotate_length_preserved; unfold k; lia).
-      rewrite rotate_complement by assumption.
-      reflexivity.
+  - (* n' + m' > L: wrap around *)
+    assert (Hk : n' + m' - L < L) by lia.
+    replace ((n' + m') mod L) with (n' + m' - L).
+    2: { symmetry. rewrite (Nat.Div0.mod_eq (n' + m') L).
+         assert (HL : L <> 0) by lia.
+         assert (Hdiv : 1 = (n' + m') / L).
+         { exact (Nat.div_unique (n' + m') L 1 (n' + m' - L) ltac:(lia) ltac:(lia)). }
+         rewrite <- Hdiv. lia. }
+    set (k := n' + m' - L).
+    assert (Hm_split : m' = (L - n') + k) by (unfold k; lia).
+    rewrite Hm_split.
+    rewrite <- (rotate_add (L - n') k (rotate n' p))
+      by (rewrite rotate_length_preserved; unfold L, k; lia).
+    unfold L. rewrite rotate_complement by lia.
+    reflexivity.
 Qed.
 
 (** Witness: rotation preserves length *)
