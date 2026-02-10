@@ -881,6 +881,360 @@ Proof.
            exists (Long :: q). split. reflexivity. simpl. lia.
 Qed.
 
+(** ** Section 2 Substantive Examples *)
+
+(** *** letters_to_pattern boundary cases at syllable boundaries *)
+
+(** Empty input. *)
+Example ltp_boundary_empty : letters_to_pattern [] = Some [].
+Proof. reflexivity. Qed.
+
+(** Single mutaḥarrik: one Short syllable. *)
+Example ltp_boundary_single_M : letters_to_pattern [Mutaharrik] = Some [Short].
+Proof. reflexivity. Qed.
+
+(** Single sākin: orphan, fails. *)
+Example ltp_boundary_single_S : letters_to_pattern [Sakin] = None.
+Proof. reflexivity. Qed.
+
+(** Mutaḥarrik + sākin: one Long syllable. *)
+Example ltp_boundary_MS :
+  letters_to_pattern [Mutaharrik; Sakin] = Some [Long].
+Proof. reflexivity. Qed.
+
+(** Three mutaḥarriks: three Shorts. *)
+Example ltp_boundary_MMM :
+  letters_to_pattern [Mutaharrik; Mutaharrik; Mutaharrik] = Some [Short; Short; Short].
+Proof. reflexivity. Qed.
+
+(** M;S;M: Long then Short — boundary between S and second M. *)
+Example ltp_boundary_MSM :
+  letters_to_pattern [Mutaharrik; Sakin; Mutaharrik] = Some [Long; Short].
+Proof. reflexivity. Qed.
+
+(** M;S;M;S: two Longs — boundary between first S and second M. *)
+Example ltp_boundary_MSMS :
+  letters_to_pattern [Mutaharrik; Sakin; Mutaharrik; Sakin] = Some [Long; Long].
+Proof. reflexivity. Qed.
+
+(** M;M;S: Short then Long — boundary after first M (Short) before M;S (Long). *)
+Example ltp_boundary_MMS :
+  letters_to_pattern [Mutaharrik; Mutaharrik; Sakin] = Some [Short; Long].
+Proof. reflexivity. Qed.
+
+(** Consecutive sākins: S;S → None (first S is orphan). *)
+Example ltp_boundary_SS : letters_to_pattern [Sakin; Sakin] = None.
+Proof. reflexivity. Qed.
+
+(** S;M → None (leading orphan sākin). *)
+Example ltp_boundary_SM : letters_to_pattern [Sakin; Mutaharrik] = None.
+Proof. reflexivity. Qed.
+
+(** M;S;S → None (second S is orphan after Long syllable consumes M;S). *)
+Example ltp_boundary_MSS :
+  letters_to_pattern [Mutaharrik; Sakin; Sakin] = None.
+Proof. reflexivity. Qed.
+
+(** M;M;S;M;S: Short, Long, Long — three syllable boundaries. *)
+Example ltp_boundary_MMSMS :
+  letters_to_pattern [Mutaharrik; Mutaharrik; Sakin; Mutaharrik; Sakin]
+    = Some [Short; Long; Long].
+Proof. reflexivity. Qed.
+
+(** *** wf_letter_seq on hand-crafted edge inputs *)
+
+(** Empty sequence is well-formed. *)
+Example wf_edge_empty : wf_letter_seq [] = true.
+Proof. reflexivity. Qed.
+
+(** Lone sākin is ill-formed. *)
+Example wf_edge_lone_S : wf_letter_seq [Sakin] = false.
+Proof. reflexivity. Qed.
+
+(** Lone mutaḥarrik is well-formed. *)
+Example wf_edge_lone_M : wf_letter_seq [Mutaharrik] = true.
+Proof. reflexivity. Qed.
+
+(** M;S (one Long syllable) is well-formed. *)
+Example wf_edge_MS : wf_letter_seq [Mutaharrik; Sakin] = true.
+Proof. reflexivity. Qed.
+
+(** S;M (orphan sākin at start) is ill-formed. *)
+Example wf_edge_SM : wf_letter_seq [Sakin; Mutaharrik] = false.
+Proof. reflexivity. Qed.
+
+(** S;S (double orphan) is ill-formed. *)
+Example wf_edge_SS : wf_letter_seq [Sakin; Sakin] = false.
+Proof. reflexivity. Qed.
+
+(** M;M (two Shorts) is well-formed. *)
+Example wf_edge_MM : wf_letter_seq [Mutaharrik; Mutaharrik] = true.
+Proof. reflexivity. Qed.
+
+(** M;S;S (consecutive sākins after Long) is ill-formed. *)
+Example wf_edge_MSS : wf_letter_seq [Mutaharrik; Sakin; Sakin] = false.
+Proof. reflexivity. Qed.
+
+(** M;S;M;S (two Longs) is well-formed. *)
+Example wf_edge_MSMS : wf_letter_seq [Mutaharrik; Sakin; Mutaharrik; Sakin] = true.
+Proof. reflexivity. Qed.
+
+(** Four Shorts is well-formed. *)
+Example wf_edge_MMMM :
+  wf_letter_seq [Mutaharrik; Mutaharrik; Mutaharrik; Mutaharrik] = true.
+Proof. reflexivity. Qed.
+
+(** Four Longs is well-formed. *)
+Example wf_edge_long_alternating :
+  wf_letter_seq [Mutaharrik; Sakin; Mutaharrik; Sakin;
+                  Mutaharrik; Sakin; Mutaharrik; Sakin] = true.
+Proof. reflexivity. Qed.
+
+(** Ill-formed buried deep: S;S at positions 3-4. *)
+Example wf_edge_buried_SS :
+  wf_letter_seq [Mutaharrik; Sakin; Mutaharrik; Sakin; Sakin; Mutaharrik] = false.
+Proof. reflexivity. Qed.
+
+(** *** Round-trip on patterns of length 0–6 *)
+
+(** Length 0. *)
+Example roundtrip_len0 :
+  letters_to_pattern (pattern_to_letters []) = Some [].
+Proof. reflexivity. Qed.
+
+(** Length 1: Short. *)
+Example roundtrip_len1_S :
+  letters_to_pattern (pattern_to_letters [Short]) = Some [Short].
+Proof. reflexivity. Qed.
+
+(** Length 1: Long. *)
+Example roundtrip_len1_L :
+  letters_to_pattern (pattern_to_letters [Long]) = Some [Long].
+Proof. reflexivity. Qed.
+
+(** Length 2: all four weight pairs. *)
+Example roundtrip_len2_SS :
+  letters_to_pattern (pattern_to_letters [Short; Short]) = Some [Short; Short].
+Proof. reflexivity. Qed.
+
+Example roundtrip_len2_SL :
+  letters_to_pattern (pattern_to_letters [Short; Long]) = Some [Short; Long].
+Proof. reflexivity. Qed.
+
+Example roundtrip_len2_LS :
+  letters_to_pattern (pattern_to_letters [Long; Short]) = Some [Long; Short].
+Proof. reflexivity. Qed.
+
+Example roundtrip_len2_LL :
+  letters_to_pattern (pattern_to_letters [Long; Long]) = Some [Long; Long].
+Proof. reflexivity. Qed.
+
+(** Length 3: representative patterns. *)
+Example roundtrip_len3_SLL :
+  letters_to_pattern (pattern_to_letters [Short; Long; Long]) = Some [Short; Long; Long].
+Proof. reflexivity. Qed.
+
+Example roundtrip_len3_SSS :
+  letters_to_pattern (pattern_to_letters [Short; Short; Short]) = Some [Short; Short; Short].
+Proof. reflexivity. Qed.
+
+Example roundtrip_len3_LLL :
+  letters_to_pattern (pattern_to_letters [Long; Long; Long]) = Some [Long; Long; Long].
+Proof. reflexivity. Qed.
+
+(** Length 4: representative patterns. *)
+Example roundtrip_len4_SLLL :
+  letters_to_pattern (pattern_to_letters [Short; Long; Long; Long])
+    = Some [Short; Long; Long; Long].
+Proof. reflexivity. Qed.
+
+Example roundtrip_len4_LSLS :
+  letters_to_pattern (pattern_to_letters [Long; Short; Long; Short])
+    = Some [Long; Short; Long; Short].
+Proof. reflexivity. Qed.
+
+(** Length 5: representative pattern (mutafailun). *)
+Example roundtrip_len5 :
+  letters_to_pattern (pattern_to_letters [Short; Short; Long; Short; Long])
+    = Some [Short; Short; Long; Short; Long].
+Proof. reflexivity. Qed.
+
+(** Length 5: all-Long. *)
+Example roundtrip_len5_LLLLL :
+  letters_to_pattern (pattern_to_letters [Long; Long; Long; Long; Long])
+    = Some [Long; Long; Long; Long; Long].
+Proof. reflexivity. Qed.
+
+(** Length 6: representative pattern. *)
+Example roundtrip_len6 :
+  letters_to_pattern (pattern_to_letters [Short; Long; Short; Long; Short; Long])
+    = Some [Short; Long; Short; Long; Short; Long].
+Proof. reflexivity. Qed.
+
+(** Length 6: all-Short. *)
+Example roundtrip_len6_SSSSSS :
+  letters_to_pattern (pattern_to_letters [Short; Short; Short; Short; Short; Short])
+    = Some [Short; Short; Short; Short; Short; Short].
+Proof. reflexivity. Qed.
+
+(** *** delete_at at first, last, and out-of-bounds indices *)
+
+(** delete_at 0: removes head. *)
+Example delete_at_first :
+  delete_at 0 [Mutaharrik; Sakin; Mutaharrik] = [Sakin; Mutaharrik].
+Proof. reflexivity. Qed.
+
+(** delete_at last index: removes tail. *)
+Example delete_at_last :
+  delete_at 2 [Mutaharrik; Sakin; Mutaharrik] = [Mutaharrik; Sakin].
+Proof. reflexivity. Qed.
+
+(** delete_at middle: removes interior element. *)
+Example delete_at_mid :
+  delete_at 1 [Mutaharrik; Sakin; Mutaharrik] = [Mutaharrik; Mutaharrik].
+Proof. reflexivity. Qed.
+
+(** delete_at out of bounds: no change. *)
+Example delete_at_oob :
+  delete_at 5 [Mutaharrik; Sakin; Mutaharrik] = [Mutaharrik; Sakin; Mutaharrik].
+Proof. reflexivity. Qed.
+
+(** delete_at on empty: no change. *)
+Example delete_at_empty :
+  delete_at 0 ([] : letter_seq) = [].
+Proof. reflexivity. Qed.
+
+(** delete_at on singleton: removes the only element. *)
+Example delete_at_singleton :
+  delete_at 0 [Mutaharrik] = [].
+Proof. reflexivity. Qed.
+
+(** *** replace_at at first, last, and out-of-bounds indices *)
+
+(** replace_at 0: replaces head. *)
+Example replace_at_first :
+  replace_at 0 Sakin [Mutaharrik; Mutaharrik; Mutaharrik] = [Sakin; Mutaharrik; Mutaharrik].
+Proof. reflexivity. Qed.
+
+(** replace_at last index: replaces tail. *)
+Example replace_at_last :
+  replace_at 2 Sakin [Mutaharrik; Mutaharrik; Mutaharrik] = [Mutaharrik; Mutaharrik; Sakin].
+Proof. reflexivity. Qed.
+
+(** replace_at middle: replaces interior element. *)
+Example replace_at_mid :
+  replace_at 1 Sakin [Mutaharrik; Mutaharrik; Mutaharrik] = [Mutaharrik; Sakin; Mutaharrik].
+Proof. reflexivity. Qed.
+
+(** replace_at out of bounds: no change. *)
+Example replace_at_oob :
+  replace_at 5 Sakin [Mutaharrik; Mutaharrik; Mutaharrik] = [Mutaharrik; Mutaharrik; Mutaharrik].
+Proof. reflexivity. Qed.
+
+(** replace_at on empty: no change. *)
+Example replace_at_empty :
+  replace_at 0 Sakin ([] : letter_seq) = [].
+Proof. reflexivity. Qed.
+
+(** replace_at on singleton: replaces the only element. *)
+Example replace_at_singleton :
+  replace_at 0 Sakin [Mutaharrik] = [Sakin].
+Proof. reflexivity. Qed.
+
+(** *** insert_at at first, last, and out-of-bounds indices *)
+
+(** insert_at 0: prepends. *)
+Example insert_at_first :
+  insert_at 0 Sakin [Mutaharrik; Mutaharrik] = [Sakin; Mutaharrik; Mutaharrik].
+Proof. reflexivity. Qed.
+
+(** insert_at at length: appends. *)
+Example insert_at_end :
+  insert_at 2 Sakin [Mutaharrik; Mutaharrik] = [Mutaharrik; Mutaharrik; Sakin].
+Proof. reflexivity. Qed.
+
+(** insert_at middle: inserts at interior position. *)
+Example insert_at_mid :
+  insert_at 1 Sakin [Mutaharrik; Mutaharrik] = [Mutaharrik; Sakin; Mutaharrik].
+Proof. reflexivity. Qed.
+
+(** insert_at beyond length: appends to end. *)
+Example insert_at_oob :
+  insert_at 10 Sakin [Mutaharrik; Mutaharrik] = [Mutaharrik; Mutaharrik; Sakin].
+Proof. reflexivity. Qed.
+
+(** insert_at on empty at 0: creates singleton. *)
+Example insert_at_empty_0 :
+  insert_at 0 Mutaharrik ([] : letter_seq) = [Mutaharrik].
+Proof. reflexivity. Qed.
+
+(** insert_at on empty beyond 0: still creates singleton. *)
+Example insert_at_empty_oob :
+  insert_at 5 Mutaharrik ([] : letter_seq) = [Mutaharrik].
+Proof. reflexivity. Qed.
+
+(** *** nth_sakin_pos / nth_mutaharrik_pos when target count exceeds available *)
+
+(** nth_sakin_pos on empty: always None. *)
+Example nth_sakin_pos_empty :
+  nth_sakin_pos 0 [] 0 = None.
+Proof. reflexivity. Qed.
+
+(** nth_mutaharrik_pos on empty: always None. *)
+Example nth_mutaharrik_pos_empty :
+  nth_mutaharrik_pos 0 [] 0 = None.
+Proof. reflexivity. Qed.
+
+(** Ask for 1st sākin (0-indexed) in a sequence with no sākins. *)
+Example nth_sakin_pos_no_sakins :
+  nth_sakin_pos 0 [Mutaharrik; Mutaharrik; Mutaharrik] 0 = None.
+Proof. reflexivity. Qed.
+
+(** Ask for 1st mutaḥarrik (0-indexed) in a sequence with no mutaḥarriks. *)
+Example nth_mutaharrik_pos_no_mutaharriks :
+  nth_mutaharrik_pos 0 [Sakin] 0 = None.
+Proof. reflexivity. Qed.
+
+(** Ask for 2nd sākin in a sequence with only one sākin. *)
+Example nth_sakin_pos_overflow_1 :
+  nth_sakin_pos 1 [Mutaharrik; Sakin; Mutaharrik] 0 = None.
+Proof. reflexivity. Qed.
+
+(** Ask for 3rd sākin in a sequence with two sākins. *)
+Example nth_sakin_pos_overflow_2 :
+  nth_sakin_pos 2 [Mutaharrik; Sakin; Mutaharrik; Sakin] 0 = None.
+Proof. reflexivity. Qed.
+
+(** Ask for 2nd mutaḥarrik in a sequence with only one. *)
+Example nth_mutaharrik_pos_overflow_1 :
+  nth_mutaharrik_pos 1 [Mutaharrik; Sakin] 0 = None.
+Proof. reflexivity. Qed.
+
+(** Ask for 4th mutaḥarrik in a sequence with three. *)
+Example nth_mutaharrik_pos_overflow_3 :
+  nth_mutaharrik_pos 3 [Mutaharrik; Sakin; Mutaharrik; Mutaharrik] 0 = None.
+Proof. reflexivity. Qed.
+
+(** Large n on short sequence: always None. *)
+Example nth_sakin_pos_large_n :
+  nth_sakin_pos 100 [Mutaharrik; Sakin; Mutaharrik; Sakin; Mutaharrik; Sakin] 0 = None.
+Proof. reflexivity. Qed.
+
+Example nth_mutaharrik_pos_large_n :
+  nth_mutaharrik_pos 100 [Mutaharrik; Sakin; Mutaharrik; Sakin; Mutaharrik; Sakin] 0 = None.
+Proof. reflexivity. Qed.
+
+(** Exact count succeeds, one more fails. *)
+Example nth_sakin_pos_exact_then_overflow :
+  nth_sakin_pos 1 [Mutaharrik; Sakin; Mutaharrik; Sakin] 0 = Some 3 /\
+  nth_sakin_pos 2 [Mutaharrik; Sakin; Mutaharrik; Sakin] 0 = None.
+Proof. split; reflexivity. Qed.
+
+Example nth_mutaharrik_pos_exact_then_overflow :
+  nth_mutaharrik_pos 1 [Mutaharrik; Sakin; Mutaharrik; Sakin] 0 = Some 2 /\
+  nth_mutaharrik_pos 2 [Mutaharrik; Sakin; Mutaharrik; Sakin] 0 = None.
+Proof. split; reflexivity. Qed.
+
 (** End of Section 2: Letter-Level Structure *)
 
 (** * Section 3: Building Blocks *)
