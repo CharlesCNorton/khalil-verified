@@ -4211,6 +4211,108 @@ Example naqs_witness :
   apply_naqs mufaalatun = Some [Short; Long; Long; Short].
 Proof. reflexivity. Qed.
 
+(** ** Simultaneous vs. Sequential Compound Deletion *)
+
+(** Khabl and shakl use simultaneous deletion (both indices resolved
+    against the original letter sequence) rather than sequential
+    composition (apply khabn, then apply tayy/kaff to the result).
+    The two strategies are NOT equivalent: sequential composition
+    fails on every foot where the simultaneous version succeeds,
+    because khabn's deletion shifts subsequent letter indices.
+
+    Khazl and naqs are unaffected because their first operation
+    (iḍmār, ʿaṣb) is a replacement, not a deletion, so indices
+    are preserved for the second operation. *)
+
+(** Sequential alternatives for comparison. *)
+
+Definition apply_khabl_seq (p : pattern) : option pattern :=
+  match apply_khabn p with
+  | Some p' => apply_tayy p'
+  | None => None
+  end.
+
+Definition apply_shakl_seq (p : pattern) : option pattern :=
+  match apply_khabn p with
+  | Some p' => apply_kaff p'
+  | None => None
+  end.
+
+(** *** Khabl: Simultaneous Succeeds, Sequential Fails *)
+
+(** On mustafilun, simultaneous khabl succeeds. *)
+Example khabl_simultaneous_succeeds :
+  apply_khabl mustafilun = Some [Short; Short; Short; Long].
+Proof. reflexivity. Qed.
+
+(** On mustafilun, sequential khabn-then-tayy fails.
+    khabn deletes index 1 (S): [M;S;M;S;M;M;S] → [M;M;S;M;M;S].
+    tayy needs index 3 to be S, but index 3 of [M;M;S;M;M;S] is M. *)
+Example khabl_sequential_fails :
+  apply_khabl_seq mustafilun = None.
+Proof. reflexivity. Qed.
+
+(** The divergence holds on every foot where khabl applies.
+    khabl applies to mustafilun and mafulatu (both have S at
+    indices 1 and 3). Sequential fails on both. *)
+Example khabl_sequential_fails_mafulatu :
+  apply_khabl mafulatu = Some [Short; Short; Long; Short] /\
+  apply_khabl_seq mafulatu = None.
+Proof. split; reflexivity. Qed.
+
+(** Theorem: for every foot, if simultaneous khabl succeeds then
+    sequential khabl fails. *)
+Theorem khabl_sim_seq_diverge : forall f p,
+  apply_khabl (foot_pattern f) = Some p ->
+  apply_khabl_seq (foot_pattern f) = None.
+Proof.
+  intros f p H. destruct f; simpl in H |- *; try discriminate; reflexivity.
+Qed.
+
+(** *** Shakl: Simultaneous Succeeds, Sequential Fails *)
+
+(** On failatun, simultaneous shakl succeeds. *)
+Example shakl_simultaneous_succeeds :
+  apply_shakl failatun = Some [Short; Short; Long; Short].
+Proof. reflexivity. Qed.
+
+(** On failatun, sequential khabn-then-kaff fails.
+    khabn deletes index 1 (S): [M;S;M;M;S;M;S] → [M;M;M;S;M;S].
+    kaff needs index 6 to be S, but the result has only 6 letters
+    (indices 0-5), so nth_error at 6 is None. *)
+Example shakl_sequential_fails :
+  apply_shakl_seq failatun = None.
+Proof. reflexivity. Qed.
+
+(** Theorem: for every foot, if simultaneous shakl succeeds then
+    sequential shakl fails. *)
+Theorem shakl_sim_seq_diverge : forall f p,
+  apply_shakl (foot_pattern f) = Some p ->
+  apply_shakl_seq (foot_pattern f) = None.
+Proof.
+  intros f p H. destruct f; simpl in H |- *; try discriminate; reflexivity.
+Qed.
+
+(** *** Khazl and Naqs: Sequential Is Correct *)
+
+(** For khazl (iḍmār + tayy) and naqs (ʿaṣb + kaff), the first
+    operation is a replacement (M→S), not a deletion, so letter
+    indices are preserved. Sequential composition is correct. *)
+
+(** Khazl: iḍmār replaces index 1 (M→S), preserving all indices.
+    tayy then correctly targets index 3 of the modified sequence,
+    which corresponds to original index 3. *)
+Example khazl_sequential_correct :
+  apply_khazl mutafailun = Some [Long; Short; Short; Long].
+Proof. reflexivity. Qed.
+
+(** Naqs: ʿaṣb replaces index 4 (M→S), preserving all indices.
+    kaff then correctly targets index 6 of the modified sequence,
+    which corresponds to original index 6. *)
+Example naqs_sequential_correct :
+  apply_naqs mufaalatun = Some [Short; Long; Long; Short].
+Proof. reflexivity. Qed.
+
 (** ** Variation Enumeration *)
 
 Definition all_zihaf : list zihaf := [Khabn; Tayy; Qabḍ; Kaff; Waqṣ; ʿAṣb; Iḍmār; ʿAql; Shamm].
@@ -5385,6 +5487,129 @@ Lemma foot_zihaf_count_bounds : forall f : foot,
   1 <= length (foot_permitted_zihaf f) <= 3.
 Proof.
   intros f. destruct f; simpl; lia.
+Qed.
+
+(** ** Meter-Specific Ḥashw Refinements *)
+
+(** The per-foot-type rules in foot_permitted_zihaf represent the
+    structural consensus: every zihāf that applies to a foot type and
+    is recognized by the tradition. However, certain meters restrict
+    which of these are commonly used in ḥashw positions. The classical
+    sources (al-Khalīl, Ibn Jinnī, Ḥāzim al-Qarṭājannī) mark some
+    combinations as rare (qalīl) or ugly (qabīḥ):
+
+    - Ṭawīl: kaff on mafāʿīlun is rare (qabīḥ per most authorities)
+    - Madīd: kaff on fāʿilātun is rare
+    - Basīṭ: tayy on mustafʿilun is rare
+    - Wāfir: ʿaql on mufāʿalatun is rare (qabīḥ)
+    - Kāmil: waqṣ on mutafāʿilun is rare (qabīḥ)
+    - Khafīf: kaff on fāʿilātun is rare
+
+    We model this as a meter-aware refinement of foot_permitted_zihaf
+    that drops the rare variants. For meters not listed, the foot-level
+    rules apply unchanged. *)
+
+Definition meter_hashw_zihaf (m : meter) (f : foot) : list zihaf :=
+  match m, f with
+  | Tawil, Mafailun => [Qabḍ]
+  | Madid, Failatun => [Khabn]
+  | Basit, Mustafilun => [Khabn]
+  | Wafir, Mufaalatun => [ʿAṣb]
+  | Kamil, Mutafailun => [Iḍmār; Shamm]
+  | Khafif, Failatun => [Khabn]
+  | _, _ => foot_permitted_zihaf f
+  end.
+
+(** Meter-aware legality predicate for ḥashw positions. *)
+
+Definition is_legal_zihaf_at_strict (m : meter) (pos : nat) (z : zihaf) : bool :=
+  match nth_error (meter_feet m) pos with
+  | Some f => existsb (zihaf_eqb z) (meter_hashw_zihaf m f)
+  | None => false
+  end.
+
+(** *** Refinement Is a Subset *)
+
+(** Every meter-specific list is a subset of the foot-level list. *)
+Lemma meter_hashw_zihaf_incl : forall m f,
+  incl (meter_hashw_zihaf m f) (foot_permitted_zihaf f).
+Proof.
+  intros m f. unfold incl.
+  destruct m, f; simpl; intros z Hz;
+  repeat (destruct Hz as [Hz | Hz]; [subst; simpl; auto | ]); contradiction.
+Qed.
+
+(** Strict legality implies foot-level legality. *)
+Lemma strict_implies_foot_legal : forall m pos z,
+  is_legal_zihaf_at_strict m pos z = true ->
+  is_legal_zihaf_at m pos z = true.
+Proof.
+  intros m pos z H.
+  unfold is_legal_zihaf_at_strict in H. unfold is_legal_zihaf_at.
+  destruct (nth_error (meter_feet m) pos) as [f|] eqn:Ef; [|discriminate].
+  unfold is_legal_zihaf_for_foot.
+  apply existsb_exists in H. destruct H as [z' [Hin Heqb]].
+  apply existsb_exists. exists z'. split.
+  - exact (meter_hashw_zihaf_incl m f z' Hin).
+  - exact Heqb.
+Qed.
+
+(** *** Witnesses *)
+
+(** Qabḍ on mafāʿīlun in Ṭawīl: permitted under both strict and foot-level rules. *)
+Example strict_tawil_qabḍ :
+  is_legal_zihaf_at_strict Tawil 1 Qabḍ = true.
+Proof. reflexivity. Qed.
+
+(** Kaff on mafāʿīlun in Ṭawīl: permitted at foot level, blocked by strict rules. *)
+Example strict_tawil_kaff :
+  is_legal_zihaf_at Tawil 1 Kaff = true /\
+  is_legal_zihaf_at_strict Tawil 1 Kaff = false.
+Proof. split; reflexivity. Qed.
+
+(** Tayy on mustafʿilun in Basīṭ: permitted at foot level, blocked by strict rules. *)
+Example strict_basit_tayy :
+  is_legal_zihaf_at Basit 0 Tayy = true /\
+  is_legal_zihaf_at_strict Basit 0 Tayy = false.
+Proof. split; reflexivity. Qed.
+
+(** ʿAql on mufāʿalatun in Wāfir: permitted at foot level, blocked by strict rules. *)
+Example strict_wafir_ʿaql :
+  is_legal_zihaf_at Wafir 0 ʿAql = true /\
+  is_legal_zihaf_at_strict Wafir 0 ʿAql = false.
+Proof. split; reflexivity. Qed.
+
+(** Waqṣ on mutafāʿilun in Kāmil: permitted at foot level, blocked by strict rules. *)
+Example strict_kamil_waqṣ :
+  is_legal_zihaf_at Kamil 0 Waqṣ = true /\
+  is_legal_zihaf_at_strict Kamil 0 Waqṣ = false.
+Proof. split; reflexivity. Qed.
+
+(** Kaff on fāʿilātun in Khafīf: permitted at foot level, blocked by strict rules. *)
+Example strict_khafif_kaff :
+  is_legal_zihaf_at Khafif 0 Kaff = true /\
+  is_legal_zihaf_at_strict Khafif 0 Kaff = false.
+Proof. split; reflexivity. Qed.
+
+(** Kaff on fāʿilātun in Madīd: permitted at foot level, blocked by strict rules. *)
+Example strict_madid_kaff :
+  is_legal_zihaf_at Madid 0 Kaff = true /\
+  is_legal_zihaf_at_strict Madid 0 Kaff = false.
+Proof. split; reflexivity. Qed.
+
+(** In Rajaz, the foot-level and strict rules coincide (no refinements). *)
+Example strict_rajaz_unchanged :
+  meter_hashw_zihaf Rajaz Mustafilun = foot_permitted_zihaf Mustafilun.
+Proof. reflexivity. Qed.
+
+(** Every meter-specific list is non-empty. *)
+Lemma meter_hashw_nonempty : forall m f,
+  In f (map fst (assign_sadr_positions m)) ->
+  meter_hashw_zihaf m f <> [].
+Proof.
+  intros m f Hin.
+  destruct m, f; simpl in *; try discriminate;
+  repeat (destruct Hin as [Hin | Hin]; [try discriminate | ]); try contradiction.
 Qed.
 
 (** End of Section 9: Legal Variation Rules Per Meter *)
