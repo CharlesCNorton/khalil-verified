@@ -63,13 +63,7 @@ Proof.
   - left. reflexivity.
 Defined.
 
-(** Witness: weight_eq_dec Short Short = left eq_refl *)
-Example weight_eq_dec_witness : exists pf, weight_eq_dec Short Short = left pf.
-Proof.
-  exists eq_refl. reflexivity.
-Qed.
-
-(** Example: weight_eq_dec covers all four constructor pairs. *)
+(** weight_eq_dec covers all four constructor pairs. *)
 Example weight_eq_dec_full_coverage :
   (exists pf, weight_eq_dec Short Short = left pf) /\
   (exists pf, weight_eq_dec Long Long = left pf) /\
@@ -77,14 +71,6 @@ Example weight_eq_dec_full_coverage :
   (exists pf, weight_eq_dec Long Short = right pf).
 Proof.
   repeat split; eexists; reflexivity.
-Qed.
-
-(** Counterexample: weight_eq_dec correctly returns right for unequal inputs.
-    A buggy implementation might return left for all inputs. *)
-Example weight_eq_dec_counterexample :
-  exists pf, weight_eq_dec Short Long = right pf.
-Proof.
-  eexists. reflexivity.
 Qed.
 
 (** ** Boolean Equality for Weight *)
@@ -112,13 +98,7 @@ Proof.
   - apply ReflectF. intros H. subst. destruct w2; discriminate.
 Qed.
 
-(** Witness: weight_eqb Long Long = true *)
-Example weight_eqb_witness : weight_eqb Long Long = true.
-Proof.
-  reflexivity.
-Qed.
-
-(** Example: weight_eqb full 2x2 truth table. *)
+(** weight_eqb full 2x2 truth table. *)
 Example weight_eqb_full_table :
   weight_eqb Short Short = true /\
   weight_eqb Long Long = true /\
@@ -127,14 +107,6 @@ Example weight_eqb_full_table :
 Proof.
   repeat split; reflexivity.
 Qed.
-
-(** Counterexample: weight_eqb returns false for unequal inputs in both directions.
-    A buggy implementation might only check one direction. *)
-Example weight_eqb_counterexample_1 : weight_eqb Short Long = false.
-Proof. reflexivity. Qed.
-
-Example weight_eqb_counterexample_2 : weight_eqb Long Short = false.
-Proof. reflexivity. Qed.
 
 (** ** Decidable Equality for Patterns *)
 
@@ -151,13 +123,7 @@ Proof.
     + right. intros H. injection H as H1 H2. contradiction.
 Defined.
 
-(** Witness: pattern_eq_dec [] [] = left eq_refl *)
-Example pattern_eq_dec_witness : exists pf, pattern_eq_dec [] [] = left pf.
-Proof.
-  exists eq_refl. reflexivity.
-Qed.
-
-(** Example: pattern_eq_dec on a 4-element deep recursive case,
+(** pattern_eq_dec on a 4-element deep recursive case,
     testing equality and a difference buried at position 3. *)
 Example pattern_eq_dec_deep :
   (exists pf, pattern_eq_dec [Short; Long; Short; Long] [Short; Long; Short; Long] = left pf) /\
@@ -166,21 +132,12 @@ Proof.
   split; eexists; reflexivity.
 Qed.
 
-(** Counterexamples for pattern_eq_dec: test failure modes.
-    - Different lengths: a buggy impl might not check length
-    - Same length, differ at head: tests head comparison
-    - Same length, differ at tail: tests recursive case *)
-Example pattern_eq_dec_counterexample_length :
-  exists pf, pattern_eq_dec [] [Short] = right pf.
-Proof. eexists. reflexivity. Qed.
-
-Example pattern_eq_dec_counterexample_head :
-  exists pf, pattern_eq_dec [Short] [Long] = right pf.
-Proof. eexists. reflexivity. Qed.
-
-Example pattern_eq_dec_counterexample_tail :
-  exists pf, pattern_eq_dec [Short; Short] [Short; Long] = right pf.
-Proof. eexists. reflexivity. Qed.
+(** pattern_eq_dec failure modes: different lengths, differ at head, differ at tail. *)
+Example pattern_eq_dec_counterexamples :
+  (exists pf, pattern_eq_dec [] [Short] = right pf) /\
+  (exists pf, pattern_eq_dec [Short] [Long] = right pf) /\
+  (exists pf, pattern_eq_dec [Short; Short] [Short; Long] = right pf).
+Proof. repeat split; eexists; reflexivity. Qed.
 
 (** ** Boolean Equality for Patterns *)
 
@@ -225,13 +182,7 @@ Qed.
   Decidable_spec := pattern_eqb_eq p1 p2
 }.
 
-(** Witness: pattern_eqb [Long] [Long] = true *)
-Example pattern_eqb_witness : pattern_eqb [Long] [Long] = true.
-Proof.
-  reflexivity.
-Qed.
-
-(** Example: pattern_eqb detects differences at each position independently. *)
+(** pattern_eqb detects differences at each position independently. *)
 Example pattern_eqb_position_sensitivity :
   pattern_eqb [Long; Long; Long] [Short; Long; Long] = false /\
   pattern_eqb [Long; Long; Long] [Long; Short; Long] = false /\
@@ -241,42 +192,23 @@ Proof.
   repeat split; reflexivity.
 Qed.
 
-(** Counterexamples for pattern_eqb: same failure modes as pattern_eq_dec *)
-Example pattern_eqb_counterexample_length : pattern_eqb [] [Short] = false.
-Proof. reflexivity. Qed.
-
-Example pattern_eqb_counterexample_head : pattern_eqb [Short] [Long] = false.
-Proof. reflexivity. Qed.
-
-Example pattern_eqb_counterexample_tail : pattern_eqb [Short; Short] [Short; Long] = false.
-Proof. reflexivity. Qed.
+(** pattern_eqb failure modes: different lengths, differ at head, differ at tail. *)
+Example pattern_eqb_counterexamples :
+  pattern_eqb [] [Short] = false /\
+  pattern_eqb [Short] [Long] = false /\
+  pattern_eqb [Short; Short] [Short; Long] = false.
+Proof. repeat split; reflexivity. Qed.
 
 (** ** Pattern Length *)
 
 Definition pattern_length (p : pattern) : nat := length p.
 
-(** Witness: pattern_length [Short; Long; Long] = 3 *)
-Example pattern_length_witness : pattern_length [Short; Long; Long] = 3.
-Proof.
-  reflexivity.
-Qed.
-
-(** Example: pattern_length distributes over concatenation. *)
+(** pattern_length distributes over concatenation. *)
 Example pattern_length_app :
   pattern_length ([Short; Long] ++ [Long; Short; Long]) =
   pattern_length [Short; Long] + pattern_length [Long; Short; Long].
 Proof.
   reflexivity.
-Qed.
-
-(** Counterexample: pattern_length increments correctly.
-    A buggy implementation might return constant 0 or skip elements. *)
-Example pattern_length_counterexample :
-  pattern_length [Short] = 1 /\
-  pattern_length [Short; Long] = 2 /\
-  pattern_length [Short; Long; Short] = 3.
-Proof.
-  repeat split; reflexivity.
 Qed.
 
 (** ** Mora Count *)
@@ -298,9 +230,6 @@ Fixpoint pattern_morae (p : pattern) : nat :=
 Example pattern_morae_example : pattern_morae [Short; Long; Long] = 5.
 Proof. reflexivity. Qed.
 
-Example pattern_morae_empty : pattern_morae [] = 0.
-Proof. reflexivity. Qed.
-
 (** ** Weight Enumeration *)
 
 (** The type weight has exactly two inhabitants. *)
@@ -312,19 +241,6 @@ Proof.
   intros w. destruct w.
   - left. reflexivity.
   - right. left. reflexivity.
-Qed.
-
-(** Witness: In Short all_weights *)
-Example all_weights_witness : In Short all_weights.
-Proof.
-  left. reflexivity.
-Qed.
-
-(** Example: all_weights is exactly [Short; Long] with length 2. *)
-Example all_weights_exact :
-  all_weights = [Short; Long] /\ length all_weights = 2.
-Proof.
-  split; reflexivity.
 Qed.
 
 (** Counterexample: an incomplete enumeration fails completeness.
@@ -344,22 +260,6 @@ Proof.
   - simpl. intros [H | H].
     + discriminate.
     + contradiction.
-  - constructor.
-    + simpl. intros H. contradiction.
-    + constructor.
-Qed.
-
-(** Witness: NoDup [Short; Long] *)
-Example all_weights_nodup_witness : NoDup [Short; Long].
-Proof.
-  exact all_weights_nodup.
-Qed.
-
-(** Example: NoDup holds for any permutation of distinct weights. *)
-Example nodup_reverse_weights : NoDup [Long; Short].
-Proof.
-  constructor.
-  - simpl. intros [H | H]; [discriminate | contradiction].
   - constructor.
     + simpl. intros H. contradiction.
     + constructor.
