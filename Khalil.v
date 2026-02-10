@@ -5658,6 +5658,169 @@ Example no_match_count :
   ambiguity_count [Short; Short; Short] = 0.
 Proof. vm_compute. reflexivity. Qed.
 
+(** ** Scanner Preference Policy *)
+
+(** When scan returns ScanVariant, it returns the first matching meter
+    in all_meters order. This documents the preference policy. *)
+
+Lemma try_meters_hd_scan_all : forall meters p m_res anns_res,
+  (fix try_meters (ms : list meter) : scan_result :=
+    match ms with
+    | [] => ScanFailed
+    | m :: ms' =>
+        match match_variant_pattern p (meter_foot_variants m) with
+        | Some anns => ScanVariant m anns
+        | None => try_meters ms'
+        end
+    end) meters = ScanVariant m_res anns_res ->
+  hd_error (flat_map (fun m =>
+    match match_variant_pattern p (meter_foot_variants m) with
+    | Some anns => [(m, anns)]
+    | None => []
+    end) meters) = Some (m_res, anns_res).
+Proof.
+  induction meters as [|m0 meters' IH]; intros p m_res anns_res H.
+  - discriminate.
+  - simpl in H |- *.
+    destruct (match_variant_pattern p (meter_foot_variants m0)) as [anns0|] eqn:Emvp.
+    + injection H as <- <-. reflexivity.
+    + exact (IH p m_res anns_res H).
+Qed.
+
+(** scan's ScanVariant result is always the first element of scan_all. *)
+Theorem scan_variant_is_first_match : forall p m anns,
+  scan p = ScanVariant m anns ->
+  hd_error (scan_all p) = Some (m, anns).
+Proof.
+  intros p m anns H.
+  unfold scan in H.
+  destruct (pattern_to_meter p) as [m0|] eqn:Eptm; [discriminate|].
+  unfold scan_all.
+  exact (try_meters_hd_scan_all all_meters p m anns H).
+Qed.
+
+(** ** Canonical Pattern Ambiguity Analysis *)
+
+(** For each meter, the canonical pattern's ambiguity count reveals
+    whether other meters can produce the same pattern via variation.
+    The only ambiguous canonical pattern is Rajaz: its pattern
+    [Long;Long;Short;Long] x 3 also matches Kamil with iḍmār on all
+    three feet (mutafāʿilun → mustafʿilun). This is the classical
+    Kāmil/Rajaz overlap in the Arabic prosodic tradition. *)
+
+Theorem canonical_ambiguity_counts : forall m : meter,
+  ambiguity_count (meter_pattern m) =
+    match m with
+    | Rajaz => 2
+    | _ => 1
+    end.
+Proof.
+  intros m. destruct m; vm_compute; reflexivity.
+Qed.
+
+(** The Rajaz/Kamil overlap: the exact canonical Rajaz pattern matches
+    Kamil with iḍmār applied to all three feet. *)
+Example rajaz_kamil_overlap :
+  scan_all (meter_pattern Rajaz) =
+    [(Kamil, [SimpleZihaf Iḍmār; SimpleZihaf Iḍmār; SimpleZihaf Iḍmār]);
+     (Rajaz, [Canonical; Canonical; Canonical])].
+Proof. vm_compute. reflexivity. Qed.
+
+(** All meters except Rajaz have unambiguous canonical patterns. *)
+Theorem canonical_unambiguous_except_rajaz : forall m : meter,
+  m <> Rajaz -> ambiguity_count (meter_pattern m) = 1.
+Proof.
+  intros m Hneq. destruct m; try (vm_compute; reflexivity); contradiction.
+Qed.
+
+(** scan prefers Rajaz over Kamil for the ambiguous pattern, because
+    Rajaz precedes Kamil in all_meters. *)
+Example rajaz_preferred_over_kamil :
+  scan (meter_pattern Rajaz) = ScanSuccess Rajaz.
+Proof. vm_compute. reflexivity. Qed.
+
+(** ** Pairwise Variant-Space Disjointness *)
+
+(** Enumerate all variant patterns for a meter by taking the
+    Cartesian product of per-foot variant lists. *)
+
+Fixpoint cart_concat (foot_vars : list (list annotated_variant)) : list pattern :=
+  match foot_vars with
+  | [] => [[]]
+  | vs :: rest =>
+      let rps := cart_concat rest in
+      flat_map (fun va : annotated_variant =>
+        map (fun rp => fst va ++ rp) rps) vs
+  end.
+
+Definition meter_variant_patterns (m : meter) : list pattern :=
+  cart_concat (meter_foot_variants m).
+
+(** Check whether any variant pattern of m1 is accepted by m2's
+    foot-by-foot variant matcher. *)
+
+Definition meters_share_variant (m1 m2 : meter) : bool :=
+  existsb (fun p =>
+    match match_variant_pattern p (meter_foot_variants m2) with
+    | Some _ => true
+    | None => false
+    end) (meter_variant_patterns m1).
+
+(** Compute all ordered pairs of distinct meters sharing a variant pattern. *)
+
+Definition overlap_pairs : list (meter * meter) :=
+  filter (fun pair =>
+    match meter_eq_dec (fst pair) (snd pair) with
+    | left _ => false
+    | right _ => meters_share_variant (fst pair) (snd pair)
+    end)
+    (flat_map (fun m1 => map (fun m2 => (m1, m2)) all_meters) all_meters).
+
+(** The exhaustive computation reveals seven symmetric overlap groups:
+    1. Kāmil ↔ Rajaz (iḍmār on mutafāʿilun = mustafʿilun)
+    2. Kāmil ↔ Mutadārik
+    3. Madīd ↔ Mutadārik
+    4. Hazaj ↔ Muqtaḍab
+    5. Rajaz ↔ Sarīʿ
+    6. Munsariḥ ↔ Mutadārik
+    7. Muḍāriʿ ↔ Mujtathth
+    Mutadārik — al-Akhfash's addition, not Khalil's — overlaps with
+    three other meters, which may explain why Khalil omitted it. *)
+
+Theorem variant_overlap_exhaustive :
+  overlap_pairs =
+    [(Madid, Mutadarik); (Kamil, Rajaz); (Kamil, Mutadarik);
+     (Hazaj, Muqtadab); (Rajaz, Kamil); (Rajaz, Sari);
+     (Sari, Rajaz); (Munsarih, Mutadarik); (Mudari, Mujtathth);
+     (Muqtadab, Hazaj); (Mujtathth, Mudari); (Mutadarik, Madid);
+     (Mutadarik, Kamil); (Mutadarik, Munsarih)].
+Proof. vm_compute. reflexivity. Qed.
+
+(** Boolean characterization of the overlap relation. *)
+
+Definition is_known_overlap (m1 m2 : meter) : bool :=
+  match m1, m2 with
+  | Kamil, Rajaz | Rajaz, Kamil
+  | Kamil, Mutadarik | Mutadarik, Kamil
+  | Madid, Mutadarik | Mutadarik, Madid
+  | Hazaj, Muqtadab | Muqtadab, Hazaj
+  | Rajaz, Sari | Sari, Rajaz
+  | Munsarih, Mutadarik | Mutadarik, Munsarih
+  | Mudari, Mujtathth | Mujtathth, Mudari => true
+  | _, _ => false
+  end.
+
+(** Corollary: two distinct meters share a variant pattern iff they
+    are one of the seven known overlap pairs. *)
+
+Corollary variant_overlap_iff_known : forall m1 m2 : meter,
+  m1 <> m2 ->
+  meters_share_variant m1 m2 = is_known_overlap m1 m2.
+Proof.
+  intros m1 m2 Hneq.
+  destruct m1, m2; try contradiction; vm_compute; reflexivity.
+Qed.
+
 (** ** Hemistich Repetition *)
 
 (** A full line (bayt) consists of two hemistichs (shaṭr).
