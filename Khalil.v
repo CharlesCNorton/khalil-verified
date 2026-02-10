@@ -5514,6 +5514,150 @@ Proof.
   exact (scan_complete _ _ (exact_is_legal_variant Tawil)).
 Qed.
 
+(** ** Ambiguity Detection *)
+
+(** Collect every meter that matches a pattern, together with per-foot
+    annotations. Uses match_variant_pattern, which already includes
+    canonical (exact) matches via all-Canonical annotations. *)
+
+Definition scan_all (p : pattern) : list (meter * list foot_annotation) :=
+  flat_map (fun m =>
+    match match_variant_pattern p (meter_foot_variants m) with
+    | Some anns => [(m, anns)]
+    | None => []
+    end) all_meters.
+
+(** A pattern is metrically ambiguous if it matches more than one meter. *)
+
+Definition is_ambiguous (p : pattern) : bool :=
+  Nat.ltb 1 (length (scan_all p)).
+
+(** Number of meters matching a pattern. *)
+
+Definition ambiguity_count (p : pattern) : nat :=
+  length (scan_all p).
+
+(** ** Soundness: every result in scan_all is a genuine match *)
+
+Lemma scan_all_sound : forall p m anns,
+  In (m, anns) (scan_all p) ->
+  match_variant_pattern p (meter_foot_variants m) = Some anns.
+Proof.
+  intros p m anns H.
+  unfold scan_all in H.
+  apply in_flat_map in H.
+  destruct H as [m' [_ Hf]].
+  destruct (match_variant_pattern p (meter_foot_variants m')) as [anns'|] eqn:E.
+  - simpl in Hf. destruct Hf as [Hf | Hf]; [|contradiction].
+    inversion Hf; subst. exact E.
+  - contradiction.
+Qed.
+
+(** Every result in scan_all is a valid variant decomposition. *)
+
+Lemma scan_all_decomposition : forall p m anns,
+  In (m, anns) (scan_all p) ->
+  is_variant_decomposition p (meter_foot_variants m).
+Proof.
+  intros p m anns H.
+  exact (match_variant_pattern_sound _ _ _ (scan_all_sound _ _ _ H)).
+Qed.
+
+(** ** Completeness: match_variant_pattern success implies membership *)
+
+Lemma scan_all_complete : forall p m anns,
+  In m all_meters ->
+  match_variant_pattern p (meter_foot_variants m) = Some anns ->
+  In (m, anns) (scan_all p).
+Proof.
+  intros p m anns Hin Hmvp.
+  unfold scan_all. apply in_flat_map.
+  exists m. split. exact Hin. rewrite Hmvp. left. reflexivity.
+Qed.
+
+(** If a pattern is a legal variant of meter m, then m appears in scan_all. *)
+
+Lemma legal_variant_in_scan_all : forall p m,
+  is_legal_meter_variant p m ->
+  exists anns, In (m, anns) (scan_all p).
+Proof.
+  intros p m Hvar.
+  destruct (match_variant_pattern_complete _ _ Hvar) as [anns Hmvp].
+  exists anns. exact (scan_all_complete _ _ _ (all_meters_complete m) Hmvp).
+Qed.
+
+(** scan_all returns at most one entry per meter (match_variant_pattern
+    is deterministic), so annotations for a given meter are unique. *)
+
+Lemma scan_all_unique_anns : forall p m anns1 anns2,
+  In (m, anns1) (scan_all p) ->
+  In (m, anns2) (scan_all p) ->
+  anns1 = anns2.
+Proof.
+  intros p m anns1 anns2 H1 H2.
+  apply scan_all_sound in H1. apply scan_all_sound in H2.
+  rewrite H1 in H2. injection H2 as H2. exact H2.
+Qed.
+
+(** Ambiguity implies scan does not fail. *)
+
+Lemma ambiguous_scan_succeeds : forall p,
+  is_ambiguous p = true -> scan p <> ScanFailed.
+Proof.
+  intros p Hamb.
+  unfold is_ambiguous in Hamb.
+  destruct (scan_all p) as [|[m anns] rest] eqn:E.
+  - simpl in Hamb. discriminate.
+  - assert (Hin : In (m, anns) (scan_all p)) by (rewrite E; left; reflexivity).
+    exact (scan_complete _ _ (scan_all_decomposition _ _ _ Hin)).
+Qed.
+
+(** Witness: a pattern matching both Kāmil (waqṣ + iḍmār + iḍmār)
+    and Rajaz (khabn + canonical + canonical). This is a genuine
+    classical ambiguity: the patterns of these two meters overlap
+    when variation is permitted. *)
+
+Example ambiguity_witness :
+  scan_all [Short; Long; Short; Long;
+            Long; Long; Short; Long;
+            Long; Long; Short; Long]
+    = [(Kamil, [SimpleZihaf Waqṣ; SimpleZihaf Iḍmār; SimpleZihaf Iḍmār]);
+       (Rajaz, [SimpleZihaf Khabn; Canonical; Canonical])].
+Proof. vm_compute. reflexivity. Qed.
+
+Example ambiguity_witness_flagged :
+  is_ambiguous [Short; Long; Short; Long;
+                Long; Long; Short; Long;
+                Long; Long; Short; Long] = true.
+Proof. vm_compute. reflexivity. Qed.
+
+Example ambiguity_witness_count :
+  ambiguity_count [Short; Long; Short; Long;
+                   Long; Long; Short; Long;
+                   Long; Long; Short; Long] = 2.
+Proof. vm_compute. reflexivity. Qed.
+
+(** Example: the exact Ṭawīl pattern is unambiguous — no other meter
+    produces this pattern even with variations. *)
+
+Example tawil_unambiguous :
+  ambiguity_count (meter_pattern Tawil) = 1.
+Proof. vm_compute. reflexivity. Qed.
+
+Example tawil_not_ambiguous :
+  is_ambiguous (meter_pattern Tawil) = false.
+Proof. vm_compute. reflexivity. Qed.
+
+(** Counterexample: gibberish matches no meter. *)
+
+Example no_match_scan_all :
+  scan_all [Short; Short; Short] = [].
+Proof. vm_compute. reflexivity. Qed.
+
+Example no_match_count :
+  ambiguity_count [Short; Short; Short] = 0.
+Proof. vm_compute. reflexivity. Qed.
+
 (** ** Hemistich Repetition *)
 
 (** A full line (bayt) consists of two hemistichs (shaṭr).
