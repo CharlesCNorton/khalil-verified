@@ -4732,18 +4732,32 @@ Qed.
 
 (** Iḍmār, shamm, and ʿaṣb preserve morae: they make a mutaḥarrik
     quiescent, merging two Shorts into one Long (1+1 = 2). *)
-Lemma iḍmār_preserves_morae : forall f p,
-  apply_iḍmār (foot_pattern f) = Some p -> pattern_morae p = pattern_morae (foot_pattern f).
+Lemma iḍmār_preserves_morae : forall p p',
+  apply_iḍmār p = Some p' -> pattern_morae p' = pattern_morae p.
 Proof.
-  intros f p H. destruct f; simpl in H; try discriminate;
-  injection H as Hp; subst p; reflexivity.
+  intros p p' H. unfold apply_iḍmār in H.
+  destruct p as [|[] [|[] p_rest]]; try (simpl in H; discriminate).
+  - (* Short :: Short :: p_rest *)
+    change (pattern_to_letters (Short :: Short :: p_rest))
+      with (Mutaharrik :: Mutaharrik :: pattern_to_letters p_rest) in H.
+    simpl nth_error in H. simpl replace_at in H.
+    rewrite letters_to_pattern_cons_M_S in H.
+    rewrite pattern_letters_roundtrip in H.
+    injection H as <-. simpl. lia.
 Qed.
 
-Lemma shamm_preserves_morae : forall f p,
-  apply_shamm (foot_pattern f) = Some p -> pattern_morae p = pattern_morae (foot_pattern f).
+Lemma shamm_preserves_morae : forall p p',
+  apply_shamm p = Some p' -> pattern_morae p' = pattern_morae p.
 Proof.
-  intros f p H. destruct f; simpl in H; try discriminate;
-  injection H as Hp; subst p; reflexivity.
+  intros p p' H. unfold apply_shamm in H.
+  destruct p as [|[] [|[] p_rest]]; try (simpl in H; discriminate).
+  - (* Short :: Short :: p_rest *)
+    change (pattern_to_letters (Short :: Short :: p_rest))
+      with (Mutaharrik :: Mutaharrik :: pattern_to_letters p_rest) in H.
+    simpl nth_error in H. simpl replace_at in H.
+    rewrite letters_to_pattern_cons_M_S in H.
+    rewrite pattern_letters_roundtrip in H.
+    injection H as <-. simpl. lia.
 Qed.
 
 Lemma ʿaṣb_preserves_morae : forall f p,
@@ -4754,11 +4768,30 @@ Proof.
 Qed.
 
 (** Waqṣ and ʿaql delete a mutaḥarrik (Short syllable), reducing morae by 1. *)
-Lemma waqṣ_reduces_morae : forall f p,
-  apply_waqṣ (foot_pattern f) = Some p -> S (pattern_morae p) = pattern_morae (foot_pattern f).
+Lemma waqṣ_reduces_morae : forall p p',
+  apply_waqṣ p = Some p' -> S (pattern_morae p') = pattern_morae p.
 Proof.
-  intros f p H. destruct f; simpl in H; try discriminate;
-  injection H as Hp; subst p; reflexivity.
+  intros p p' H. unfold apply_waqṣ in H.
+  destruct p as [|[] [|[] p_rest]]; try (simpl in H; discriminate).
+  - (* Short :: Short :: p_rest *)
+    change (pattern_to_letters (Short :: Short :: p_rest))
+      with (Mutaharrik :: Mutaharrik :: pattern_to_letters p_rest) in H.
+    simpl nth_error in H. simpl delete_at in H.
+    destruct (pattern_to_letters p_rest) as [|l lrest] eqn:Ept.
+    + change (letters_to_pattern (Mutaharrik :: [])) with (Some [Short]) in H.
+      injection H as <-.
+      destruct p_rest; [reflexivity | simpl in Ept; destruct w; discriminate].
+    + assert (Hl : l = Mutaharrik) by (exact (pattern_to_letters_hd _ _ _ Ept)).
+      subst l. rewrite letters_to_pattern_cons_M_M in H.
+      rewrite <- Ept in H. rewrite pattern_letters_roundtrip in H.
+      injection H as <-. simpl. reflexivity.
+  - (* Short :: Long :: p_rest *)
+    change (pattern_to_letters (Short :: Long :: p_rest))
+      with (Mutaharrik :: Mutaharrik :: Sakin :: pattern_to_letters p_rest) in H.
+    simpl nth_error in H. simpl delete_at in H.
+    rewrite letters_to_pattern_cons_M_S in H.
+    rewrite pattern_letters_roundtrip in H.
+    injection H as <-. simpl. lia.
 Qed.
 
 Lemma ʿaql_reduces_morae : forall f p,
@@ -4803,12 +4836,19 @@ Proof.
   injection H as Hp; subst p; reflexivity.
 Qed.
 
-(** Iḍmār reduces syllable count by 1 on all applicable feet. *)
-Lemma iḍmār_reduces_count : forall f p,
-  apply_iḍmār (foot_pattern f) = Some p -> S (length p) = foot_length f.
+(** Iḍmār reduces syllable count by 1 on any pattern. *)
+Lemma iḍmār_reduces_count : forall p p',
+  apply_iḍmār p = Some p' -> S (length p') = length p.
 Proof.
-  intros f p H. destruct f; simpl in H; try discriminate;
-  injection H as Hp; subst p; reflexivity.
+  intros p p' H. unfold apply_iḍmār in H.
+  destruct p as [|[] [|[] p_rest]]; try (simpl in H; discriminate).
+  - (* Short :: Short :: p_rest *)
+    change (pattern_to_letters (Short :: Short :: p_rest))
+      with (Mutaharrik :: Mutaharrik :: pattern_to_letters p_rest) in H.
+    simpl nth_error in H. simpl replace_at in H.
+    rewrite letters_to_pattern_cons_M_S in H.
+    rewrite pattern_letters_roundtrip in H.
+    injection H as <-. simpl. reflexivity.
 Qed.
 
 (** ʿAql reduces syllable count by 1 on all applicable feet. *)
@@ -4819,12 +4859,19 @@ Proof.
   injection H as Hp; subst p; reflexivity.
 Qed.
 
-(** Shamm reduces syllable count by 1 on all applicable feet (same as iḍmār). *)
-Lemma shamm_reduces_count : forall f p,
-  apply_shamm (foot_pattern f) = Some p -> S (length p) = foot_length f.
+(** Shamm reduces syllable count by 1 on any pattern (same as iḍmār). *)
+Lemma shamm_reduces_count : forall p p',
+  apply_shamm p = Some p' -> S (length p') = length p.
 Proof.
-  intros f p H. destruct f; simpl in H; try discriminate;
-  injection H as Hp; subst p; reflexivity.
+  intros p p' H. unfold apply_shamm in H.
+  destruct p as [|[] [|[] p_rest]]; try (simpl in H; discriminate).
+  - (* Short :: Short :: p_rest *)
+    change (pattern_to_letters (Short :: Short :: p_rest))
+      with (Mutaharrik :: Mutaharrik :: pattern_to_letters p_rest) in H.
+    simpl nth_error in H. simpl replace_at in H.
+    rewrite letters_to_pattern_cons_M_S in H.
+    rewrite pattern_letters_roundtrip in H.
+    injection H as <-. simpl. reflexivity.
 Qed.
 
 (** Witness: khabn on mustafilun preserves 4-syllable count *)
