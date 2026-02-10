@@ -6383,11 +6383,24 @@ Fixpoint tasis_before_dakhil (rp : rhyme_pattern) : bool :=
   | _ :: rest => tasis_before_dakhil rest
   end.
 
-(** Full structural validity: exactly one rawīy + correct ordering *)
+(** Check if ridf immediately precedes rawīy (adjacency constraint).
+    If ridf appears, the very next element must be rawīy. A ridf at the
+    end of the list (with nothing following) also fails. *)
+Fixpoint ridf_adjacent_rawiy (rp : rhyme_pattern) : bool :=
+  match rp with
+  | [] => true
+  | Ridf :: Rawiy :: rest => ridf_adjacent_rawiy rest
+  | Ridf :: _ => false  (* ridf not immediately followed by rawīy *)
+  | _ :: rest => ridf_adjacent_rawiy rest
+  end.
+
+(** Full structural validity: exactly one rawīy + correct ordering +
+    ridf adjacency. *)
 Definition is_well_formed_rhyme (rp : rhyme_pattern) : bool :=
   is_valid_rhyme rp &&
   rawiy_before_wasl rp &&
-  tasis_before_dakhil rp.
+  tasis_before_dakhil rp &&
+  ridf_adjacent_rawiy rp.
 
 (** Witness: tasis_rhyme is well-formed *)
 Example well_formed_witness : is_well_formed_rhyme tasis_rhyme = true.
@@ -6405,6 +6418,32 @@ Proof. reflexivity. Qed.
 (** Counterexample: dakhīl before tāsīs is malformed *)
 Example well_formed_counterexample2 :
   is_well_formed_rhyme [Dakhil; Tasis; Rawiy] = false.
+Proof. reflexivity. Qed.
+
+(** Counterexample: ridf not immediately before rawīy is malformed.
+    [Ridf; Wasl; Rawiy] has ridf separated from rawīy by waṣl. *)
+Example well_formed_counterexample_ridf_nonadj :
+  is_well_formed_rhyme [Ridf; Wasl; Rawiy] = false.
+Proof. reflexivity. Qed.
+
+(** Counterexample: ridf at end of pattern (no following rawīy) is malformed. *)
+Example well_formed_counterexample_ridf_trailing :
+  is_well_formed_rhyme [Rawiy; Ridf] = false.
+Proof. reflexivity. Qed.
+
+(** Witness: ridf_adjacent_rawiy passes when ridf is absent. *)
+Example ridf_adjacent_witness_absent :
+  ridf_adjacent_rawiy [Rawiy; Wasl] = true.
+Proof. reflexivity. Qed.
+
+(** Witness: ridf_adjacent_rawiy passes when ridf immediately precedes rawīy. *)
+Example ridf_adjacent_witness_present :
+  ridf_adjacent_rawiy [Ridf; Rawiy; Wasl] = true.
+Proof. reflexivity. Qed.
+
+(** Counterexample: ridf_adjacent_rawiy fails when ridf is separated from rawīy. *)
+Example ridf_adjacent_counterexample :
+  ridf_adjacent_rawiy [Ridf; Dakhil; Rawiy] = false.
 Proof. reflexivity. Qed.
 
 (** End of Section 11: Rhyme *)
@@ -6554,8 +6593,69 @@ Proof. reflexivity. Qed.
 
 (** ** Rhyme-Aware Poem Structure *)
 
-(** A rhyme identifier — abstract, just needs decidable equality. *)
-Definition rhyme_id := nat.
+(** *** Vowel Type (Ḥaraka) *)
+
+(** The three short vowels of Arabic, used here for the majrā (the vowel
+    on the rawīy consonant) which is part of rhyme identity. *)
+
+Inductive haraka : Type :=
+  | Damma    (* ضمة - u sound *)
+  | Fatha    (* فتحة - a sound *)
+  | Kasra.   (* كسرة - i sound *)
+
+Definition haraka_eq_dec (h1 h2 : haraka) : {h1 = h2} + {h1 <> h2}.
+Proof.
+  destruct h1, h2; try (left; reflexivity); right; discriminate.
+Defined.
+
+Definition haraka_eqb (h1 h2 : haraka) : bool :=
+  match h1, h2 with
+  | Damma, Damma | Fatha, Fatha | Kasra, Kasra => true
+  | _, _ => false
+  end.
+
+Lemma haraka_eqb_eq : forall h1 h2, haraka_eqb h1 h2 = true <-> h1 = h2.
+Proof.
+  intros h1 h2. split.
+  - destruct h1, h2; simpl; intros H; try reflexivity; discriminate.
+  - intros H. rewrite H. destruct h2; reflexivity.
+Qed.
+
+(** *** Rhyme Identity *)
+
+(** A rhyme identity captures the phonological content that determines
+    whether two lines rhyme: the rawīy consonant and its vowel (majrā).
+    The rawīy consonant is represented as a nat (abstract identity);
+    the majrā is a haraka. Two lines rhyme iff they share the same
+    rawīy consonant and the same majrā. *)
+
+Record rhyme_id : Type := mk_rhyme_id {
+  ri_rawiy : nat;       (* rawīy consonant identity *)
+  ri_majra : haraka     (* majrā: vowel on the rawīy *)
+}.
+
+Definition rhyme_id_eq_dec (r1 r2 : rhyme_id) : {r1 = r2} + {r1 <> r2}.
+Proof.
+  destruct r1 as [c1 h1], r2 as [c2 h2].
+  destruct (Nat.eq_dec c1 c2) as [Hc|Hc].
+  - destruct (haraka_eq_dec h1 h2) as [Hh|Hh].
+    + left. subst. reflexivity.
+    + right. intros H. injection H as Hc' Hh'. contradiction.
+  - right. intros H. injection H as Hc' _. contradiction.
+Defined.
+
+Definition rhyme_id_eqb (r1 r2 : rhyme_id) : bool :=
+  Nat.eqb (ri_rawiy r1) (ri_rawiy r2) &&
+  haraka_eqb (ri_majra r1) (ri_majra r2).
+
+Lemma rhyme_id_eqb_eq : forall r1 r2, rhyme_id_eqb r1 r2 = true <-> r1 = r2.
+Proof.
+  intros [c1 h1] [c2 h2]. unfold rhyme_id_eqb. simpl.
+  rewrite Bool.andb_true_iff, Nat.eqb_eq, haraka_eqb_eq.
+  split.
+  - intros [Hc Hh]. subst. reflexivity.
+  - intros H. injection H as Hc Hh. split; assumption.
+Qed.
 
 (** A line with rhyme annotation on the ʿajuz (second hemistich). *)
 Record annotated_bayt : Type := mk_annotated_bayt {
@@ -6572,38 +6672,45 @@ Record annotated_bayt : Type := mk_annotated_bayt {
 Definition is_matla_proper (b : annotated_bayt) (m : meter) : bool :=
   is_valid_hemistich (ab_sadr b) m &&
   is_valid_hemistich (ab_ajuz b) m &&
-  Nat.eqb (ab_sadr_rhyme b) (ab_ajuz_rhyme b).
+  rhyme_id_eqb (ab_sadr_rhyme b) (ab_ajuz_rhyme b).
 
-(** Witness: matlaʿ with matching rhymes *)
+(** Witness: matlaʿ with matching rhymes (same consonant and vowel) *)
 Example matla_proper_witness :
   let h := meter_pattern Mutaqarib in
-  is_matla_proper (mk_annotated_bayt h h 1 1) Mutaqarib = true.
+  let r := mk_rhyme_id 1 Kasra in
+  is_matla_proper (mk_annotated_bayt h h r r) Mutaqarib = true.
 Proof. vm_compute. reflexivity. Qed.
 
-(** Counterexample: non-matlaʿ line (different rhymes) *)
+(** Counterexample: non-matlaʿ line (different rawīy consonants) *)
 Example matla_proper_counterexample :
   let h := meter_pattern Mutaqarib in
-  is_matla_proper (mk_annotated_bayt h h 1 2) Mutaqarib = false.
+  let r1 := mk_rhyme_id 1 Kasra in
+  let r2 := mk_rhyme_id 2 Kasra in
+  is_matla_proper (mk_annotated_bayt h h r1 r2) Mutaqarib = false.
 Proof. vm_compute. reflexivity. Qed.
 
 (** ** Rhyme Consistency Across Lines *)
 
 (** In a qaṣīda, all ʿajuz hemistichs must share the same rhyme. *)
 Definition is_rhyme_consistent (lines : list annotated_bayt) (r : rhyme_id) : bool :=
-  forallb (fun b => Nat.eqb (ab_ajuz_rhyme b) r) lines.
+  forallb (fun b => rhyme_id_eqb (ab_ajuz_rhyme b) r) lines.
 
-(** Witness: consistent rhyme *)
+(** Witness: consistent rhyme (all ʿajuz share the same rhyme id) *)
 Example rhyme_consistent_witness :
   let h := meter_pattern Hazaj in
+  let r := mk_rhyme_id 1 Kasra in
+  let r2 := mk_rhyme_id 2 Kasra in
   is_rhyme_consistent
-    [mk_annotated_bayt h h 1 1; mk_annotated_bayt h h 2 1] 1 = true.
+    [mk_annotated_bayt h h r r; mk_annotated_bayt h h r2 r] r = true.
 Proof. reflexivity. Qed.
 
-(** Counterexample: inconsistent rhyme *)
+(** Counterexample: inconsistent rhyme (second line has different ʿajuz rhyme) *)
 Example rhyme_consistent_counterexample :
   let h := meter_pattern Hazaj in
+  let r1 := mk_rhyme_id 1 Kasra in
+  let r2 := mk_rhyme_id 2 Kasra in
   is_rhyme_consistent
-    [mk_annotated_bayt h h 1 1; mk_annotated_bayt h h 2 2] 1 = false.
+    [mk_annotated_bayt h h r1 r1; mk_annotated_bayt h h r2 r2] r1 = false.
 Proof. reflexivity. Qed.
 
 (** ** Non-Empty Poem (Qaṣīda) *)
@@ -6632,17 +6739,20 @@ Definition is_valid_qasida (q : qasida) : bool :=
 (** Witness: valid single-line qasida *)
 Example qasida_witness :
   let h := meter_pattern Hazaj in
-  is_valid_qasida (mk_qasida (mk_annotated_bayt h h 1 1) [] Hazaj 1) = true.
+  let r := mk_rhyme_id 1 Kasra in
+  is_valid_qasida (mk_qasida (mk_annotated_bayt h h r r) [] Hazaj r) = true.
 Proof. vm_compute. reflexivity. Qed.
 
 (** Example: valid two-line qasida *)
 Example qasida_example :
   let h := meter_pattern Hazaj in
+  let r := mk_rhyme_id 1 Kasra in
+  let r2 := mk_rhyme_id 2 Kasra in
   is_valid_qasida
     (mk_qasida
-      (mk_annotated_bayt h h 1 1)
-      [mk_annotated_bayt h h 2 1]
-      Hazaj 1) = true.
+      (mk_annotated_bayt h h r r)
+      [mk_annotated_bayt h h r2 r]
+      Hazaj r) = true.
 Proof. vm_compute. reflexivity. Qed.
 
 (** Example: qasida with varied hemistich (khabn on Rajaz foot 1) *)
@@ -6651,17 +6761,22 @@ Example qasida_variant_example :
   let h_varied := [Short; Long; Short; Long;
                    Long; Long; Short; Long;
                    Long; Long; Short; Long] in
+  let r := mk_rhyme_id 1 Kasra in
+  let r2 := mk_rhyme_id 2 Kasra in
   is_valid_qasida
     (mk_qasida
-      (mk_annotated_bayt h_canon h_canon 1 1)
-      [mk_annotated_bayt h_varied h_canon 2 1]
-      Rajaz 1) = true.
+      (mk_annotated_bayt h_canon h_canon r r)
+      [mk_annotated_bayt h_varied h_canon r2 r]
+      Rajaz r) = true.
 Proof. vm_compute. reflexivity. Qed.
 
-(** Counterexample: matlaʿ rhyme mismatch invalidates qasida *)
+(** Counterexample: matlaʿ rhyme mismatch invalidates qasida.
+    Same consonant but different majrā (Kasra vs Fatha). *)
 Example qasida_counterexample :
   let h := meter_pattern Hazaj in
-  is_valid_qasida (mk_qasida (mk_annotated_bayt h h 1 2) [] Hazaj 2) = false.
+  let r1 := mk_rhyme_id 1 Kasra in
+  let r2 := mk_rhyme_id 1 Fatha in
+  is_valid_qasida (mk_qasida (mk_annotated_bayt h h r1 r2) [] Hazaj r2) = false.
 Proof. vm_compute. reflexivity. Qed.
 
 (** ** Non-emptiness Guarantee *)
@@ -6674,7 +6789,8 @@ Qed.
 (** Witness: single-line qasida has 1 line *)
 Example qasida_nonempty_witness :
   let h := meter_pattern Hazaj in
-  length (qasida_lines (mk_qasida (mk_annotated_bayt h h 1 1) [] Hazaj 1)) = 1.
+  let r := mk_rhyme_id 1 Kasra in
+  length (qasida_lines (mk_qasida (mk_annotated_bayt h h r r) [] Hazaj r)) = 1.
 Proof. reflexivity. Qed.
 
 (** End of Section 12: Poem Structure *)
