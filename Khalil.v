@@ -7725,6 +7725,77 @@ Example ghazal_counterexample_long :
      line; line; line; line; line; line; line] Hazaj r) = false.
 Proof. vm_compute. reflexivity. Qed.
 
+(** ** Rubāʿī *)
+
+(** A rubāʿī (رباعي, quatrain) has exactly 2 lines with AABA rhyme
+    scheme: the first line is a matlaʿ (both hemistichs rhyme), and
+    only the ʿajuz of the second line rhymes. The ṣadr of the second
+    line is metrically free with respect to rhyme. The meter is Hazaj. *)
+
+Definition is_valid_rubai (q : qasida) : bool :=
+  match meter_eq_dec (qas_meter q) Hazaj with
+  | left _ =>
+      is_matla_proper (qas_first q) Hazaj &&
+      match qas_rest q with
+      | [b2] =>
+          is_valid_hemistich (ab_sadr b2) Hazaj &&
+          is_valid_hemistich (ab_ajuz b2) Hazaj &&
+          rhyme_id_eqb (ab_ajuz_rhyme b2) (qas_rhyme q)
+      | _ => false
+      end
+  | right _ => false
+  end.
+
+(** A valid rubāʿī has exactly 2 lines. *)
+Lemma rubai_line_count : forall q,
+  is_valid_rubai q = true -> length (qasida_lines q) = 2.
+Proof.
+  intros q H. unfold is_valid_rubai in H.
+  destruct (meter_eq_dec (qas_meter q) Hazaj); [|discriminate].
+  apply Bool.andb_true_iff in H. destruct H as [_ H].
+  unfold qasida_lines. simpl.
+  destruct (qas_rest q) as [|b2 [|? ?]]; try discriminate.
+  reflexivity.
+Qed.
+
+(** A valid rubāʿī uses the Hazaj meter. *)
+Lemma rubai_meter : forall q,
+  is_valid_rubai q = true -> qas_meter q = Hazaj.
+Proof.
+  intros q H. unfold is_valid_rubai in H.
+  destruct (meter_eq_dec (qas_meter q) Hazaj) as [e|]; [exact e|discriminate].
+Qed.
+
+(** Witness: valid 2-line rubāʿī in Hazaj with AABA rhyme. *)
+Example rubai_witness :
+  let h := meter_pattern Hazaj in
+  let r := mk_rhyme_id 1 Kasra in
+  let r2 := mk_rhyme_id 2 Kasra in
+  let matla := mk_annotated_bayt h h r r in
+  let line2 := mk_annotated_bayt h h r2 r in
+  is_valid_rubai (mk_qasida matla [line2] Hazaj r) = true.
+Proof. vm_compute. reflexivity. Qed.
+
+(** Counterexample: wrong meter (Rajaz instead of Hazaj). *)
+Example rubai_counterexample_meter :
+  let h := meter_pattern Hazaj in
+  let r := mk_rhyme_id 1 Kasra in
+  let r2 := mk_rhyme_id 2 Kasra in
+  let matla := mk_annotated_bayt h h r r in
+  let line2 := mk_annotated_bayt h h r2 r in
+  is_valid_rubai (mk_qasida matla [line2] Rajaz r) = false.
+Proof. vm_compute. reflexivity. Qed.
+
+(** Counterexample: 3 lines is too many for a rubāʿī. *)
+Example rubai_counterexample_lines :
+  let h := meter_pattern Hazaj in
+  let r := mk_rhyme_id 1 Kasra in
+  let r2 := mk_rhyme_id 2 Kasra in
+  let matla := mk_annotated_bayt h h r r in
+  let line := mk_annotated_bayt h h r2 r in
+  is_valid_rubai (mk_qasida matla [line; line] Hazaj r) = false.
+Proof. vm_compute. reflexivity. Qed.
+
 (** End of Section 12: Poem Structure *)
 
 (** * Conclusion *)
