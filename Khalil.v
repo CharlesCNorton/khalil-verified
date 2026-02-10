@@ -69,10 +69,14 @@ Proof.
   exists eq_refl. reflexivity.
 Qed.
 
-(** Example: Short = Short *)
-Example weight_eq_example : Short = Short.
+(** Example: weight_eq_dec covers all four constructor pairs. *)
+Example weight_eq_dec_full_coverage :
+  (exists pf, weight_eq_dec Short Short = left pf) /\
+  (exists pf, weight_eq_dec Long Long = left pf) /\
+  (exists pf, weight_eq_dec Short Long = right pf) /\
+  (exists pf, weight_eq_dec Long Short = right pf).
 Proof.
-  reflexivity.
+  repeat split; eexists; reflexivity.
 Qed.
 
 (** Counterexample: weight_eq_dec correctly returns right for unequal inputs.
@@ -114,10 +118,14 @@ Proof.
   reflexivity.
 Qed.
 
-(** Example: weight_eqb Short Short = true *)
-Example weight_eqb_example : weight_eqb Short Short = true.
+(** Example: weight_eqb full 2x2 truth table. *)
+Example weight_eqb_full_table :
+  weight_eqb Short Short = true /\
+  weight_eqb Long Long = true /\
+  weight_eqb Short Long = false /\
+  weight_eqb Long Short = false.
 Proof.
-  reflexivity.
+  repeat split; reflexivity.
 Qed.
 
 (** Counterexample: weight_eqb returns false for unequal inputs in both directions.
@@ -149,10 +157,13 @@ Proof.
   exists eq_refl. reflexivity.
 Qed.
 
-(** Example: [Short; Long] = [Short; Long] *)
-Example pattern_eq_example : [Short; Long] = [Short; Long].
+(** Example: pattern_eq_dec on a 4-element deep recursive case,
+    testing equality and a difference buried at position 3. *)
+Example pattern_eq_dec_deep :
+  (exists pf, pattern_eq_dec [Short; Long; Short; Long] [Short; Long; Short; Long] = left pf) /\
+  (exists pf, pattern_eq_dec [Short; Long; Short; Long] [Short; Long; Short; Short] = right pf).
 Proof.
-  reflexivity.
+  split; eexists; reflexivity.
 Qed.
 
 (** Counterexamples for pattern_eq_dec: test failure modes.
@@ -220,10 +231,14 @@ Proof.
   reflexivity.
 Qed.
 
-(** Example: pattern_eqb [Short; Long; Long] [Short; Long; Long] = true *)
-Example pattern_eqb_example : pattern_eqb [Short; Long; Long] [Short; Long; Long] = true.
+(** Example: pattern_eqb detects differences at each position independently. *)
+Example pattern_eqb_position_sensitivity :
+  pattern_eqb [Long; Long; Long] [Short; Long; Long] = false /\
+  pattern_eqb [Long; Long; Long] [Long; Short; Long] = false /\
+  pattern_eqb [Long; Long; Long] [Long; Long; Short] = false /\
+  pattern_eqb [Long; Long; Long] [Long; Long; Long] = true.
 Proof.
-  reflexivity.
+  repeat split; reflexivity.
 Qed.
 
 (** Counterexamples for pattern_eqb: same failure modes as pattern_eq_dec *)
@@ -246,8 +261,10 @@ Proof.
   reflexivity.
 Qed.
 
-(** Example: pattern_length [] = 0 *)
-Example pattern_length_example : pattern_length [] = 0.
+(** Example: pattern_length distributes over concatenation. *)
+Example pattern_length_app :
+  pattern_length ([Short; Long] ++ [Long; Short; Long]) =
+  pattern_length [Short; Long] + pattern_length [Long; Short; Long].
 Proof.
   reflexivity.
 Qed.
@@ -303,10 +320,11 @@ Proof.
   left. reflexivity.
 Qed.
 
-(** Example: In Long all_weights *)
-Example all_weights_example : In Long all_weights.
+(** Example: all_weights is exactly [Short; Long] with length 2. *)
+Example all_weights_exact :
+  all_weights = [Short; Long] /\ length all_weights = 2.
 Proof.
-  right. left. reflexivity.
+  split; reflexivity.
 Qed.
 
 (** Counterexample: an incomplete enumeration fails completeness.
@@ -337,10 +355,14 @@ Proof.
   exact all_weights_nodup.
 Qed.
 
-(** Example: NoDup [] *)
-Example nodup_example : NoDup ([] : list weight).
+(** Example: NoDup holds for any permutation of distinct weights. *)
+Example nodup_reverse_weights : NoDup [Long; Short].
 Proof.
   constructor.
+  - simpl. intros [H | H]; [discriminate | contradiction].
+  - constructor.
+    + simpl. intros H. contradiction.
+    + constructor.
 Qed.
 
 (** Counterexample: ~ NoDup [Short; Short] *)
@@ -1011,9 +1033,18 @@ Proof. split; reflexivity. Qed.
 Example watad_not_sabab_example : is_watad [Long; Short] = true /\ is_sabab [Long; Short] = false.
 Proof. split; reflexivity. Qed.
 
-(** Counterexample: [Long] is sabab, not watad *)
-Example sabab_not_watad_counterexample2 : is_sabab [Long] = true /\ is_watad [Long] = false.
-Proof. split; reflexivity. Qed.
+(** Counterexample: all four 2-element weight patterns are classified as exactly
+    one of sabab, watad, or neither — no overlap and no gap. *)
+Example building_block_2elem_coverage :
+  (* sabab thaqil *)
+  is_sabab [Short; Short] = true  /\ is_watad [Short; Short] = false /\
+  (* watad majmu *)
+  is_sabab [Short; Long]  = false /\ is_watad [Short; Long]  = true  /\
+  (* watad mafruq *)
+  is_sabab [Long; Short]  = false /\ is_watad [Long; Short]  = true  /\
+  (* neither *)
+  is_sabab [Long; Long]   = false /\ is_watad [Long; Long]   = false.
+Proof. repeat split; reflexivity. Qed.
 
 (** ** Building Block Enumeration *)
 
@@ -1101,9 +1132,15 @@ Proof. exact all_sabab_nodup. Qed.
 Example all_watad_nodup_witness : NoDup all_watad.
 Proof. exact all_watad_nodup. Qed.
 
-(** Example: NoDup all_watad *)
-Example all_watad_nodup_example : NoDup all_watad.
-Proof. exact all_watad_nodup. Qed.
+(** Example: watad patterns are distinct from sabab patterns (cross-category). *)
+Example watad_sabab_disjoint :
+  ~ In watad_majmu all_sabab /\ ~ In watad_mafruq all_sabab /\
+  ~ In sabab_khafif all_watad /\ ~ In sabab_thaqil all_watad.
+Proof.
+  unfold all_sabab, all_watad.
+  repeat split; simpl; intros H;
+    repeat (destruct H as [H|H]; try discriminate); contradiction.
+Qed.
 
 (** Counterexample: duplicate watad list fails NoDup *)
 Example all_watad_nodup_counterexample : ~ NoDup [watad_majmu; watad_majmu].
@@ -1207,9 +1244,13 @@ Defined.
 Example foot_eq_dec_witness : exists pf, foot_eq_dec Faulun Faulun = left pf.
 Proof. eexists. reflexivity. Qed.
 
-(** Example: foot_eq_dec Mafailun Mafailun *)
-Example foot_eq_dec_example : exists pf, foot_eq_dec Mafailun Mafailun = left pf.
-Proof. eexists. reflexivity. Qed.
+(** Example: foot_eq_dec distinguishes adjacent feet in all_feet order. *)
+Example foot_eq_dec_adjacent :
+  (exists pf, foot_eq_dec Faulun Failun = right pf) /\
+  (exists pf, foot_eq_dec Failun Mafailun = right pf) /\
+  (exists pf, foot_eq_dec Mustafilun Failatun = right pf) /\
+  (exists pf, foot_eq_dec Mutafailun Mufaalatun = right pf).
+Proof. repeat split; eexists; reflexivity. Qed.
 
 (** Counterexample: foot_eq_dec returns right for different feet *)
 Example foot_eq_dec_counterexample : exists pf, foot_eq_dec Faulun Failun = right pf.
@@ -1232,9 +1273,12 @@ Proof. simpl. discriminate. Qed.
 Example foot_distinct_example : foot_pattern Mustafilun <> foot_pattern Failatun.
 Proof. simpl. discriminate. Qed.
 
-(** Counterexample: same foot has same pattern *)
-Example foot_same_pattern : foot_pattern Faulun = foot_pattern Faulun.
-Proof. reflexivity. Qed.
+(** Counterexample: foot_pattern is injective — same pattern implies same foot. *)
+Example foot_pattern_inj_check :
+  forall f : foot, foot_pattern f = foot_pattern Faulun -> f = Faulun.
+Proof.
+  intros f H. destruct f; simpl in H; try discriminate. reflexivity.
+Qed.
 
 (** ** Foot Enumeration *)
 
@@ -1312,14 +1356,13 @@ Qed.
 Example all_feet_nodup_witness : NoDup all_feet.
 Proof. exact all_feet_nodup. Qed.
 
-(** Example: NoDup for partial list *)
-Example all_feet_nodup_example : NoDup [Faulun; Failun; Mafailun].
-Proof.
-  constructor. { simpl. intros [H|[H|H]]; discriminate || contradiction. }
-  constructor. { simpl. intros [H|H]; discriminate || contradiction. }
-  constructor. { simpl. intros H; contradiction. }
-  constructor.
-Qed.
+(** Example: all 8 feet have pairwise distinct patterns (spot-check across classes). *)
+Example all_feet_patterns_distinct :
+  foot_pattern Faulun <> foot_pattern Mafailun /\
+  foot_pattern Failun <> foot_pattern Mutafailun /\
+  foot_pattern Mafailun <> foot_pattern Mufaalatun /\
+  foot_pattern Mustafilun <> foot_pattern Mafulatu.
+Proof. repeat split; discriminate. Qed.
 
 (** Counterexample: duplicates fail NoDup *)
 Example all_feet_nodup_counterexample : ~ NoDup [Faulun; Faulun].
@@ -1337,15 +1380,20 @@ Proof.
   destruct f1, f2; simpl in H; try reflexivity; discriminate.
 Qed.
 
-(** Witness: same pattern implies same foot *)
+(** Witness: injectivity recovers the foot from a non-trivial pattern match. *)
 Example foot_pattern_injective_witness :
-  foot_pattern Faulun = foot_pattern Faulun -> Faulun = Faulun.
-Proof. intros _. reflexivity. Qed.
+  forall f, foot_pattern f = mafailun -> f = Mafailun.
+Proof.
+  intros f H. destruct f; simpl in H; try discriminate. reflexivity.
+Qed.
 
-(** Example: injectivity for quadrisyllabic feet *)
-Example foot_pattern_injective_example :
-  foot_pattern Mafailun = foot_pattern Mafailun -> Mafailun = Mafailun.
-Proof. intros _. reflexivity. Qed.
+(** Example: injectivity distinguishes same-length feet (all four quadrisyllabic). *)
+Example foot_pattern_injective_quad :
+  foot_pattern Mafailun <> foot_pattern Mustafilun /\
+  foot_pattern Mafailun <> foot_pattern Failatun /\
+  foot_pattern Mafailun <> foot_pattern Mafulatu /\
+  foot_pattern Mustafilun <> foot_pattern Failatun.
+Proof. repeat split; discriminate. Qed.
 
 (** Counterexample: different patterns imply different feet *)
 Example foot_pattern_injective_counterexample :
@@ -1374,9 +1422,13 @@ Defined.
 Example block_eq_dec_witness : exists pf, block_eq_dec BlkSababKhafif BlkSababKhafif = left pf.
 Proof. eexists. reflexivity. Qed.
 
-(** Example: block_eq_dec BlkWatadMajmu BlkWatadMajmu *)
-Example block_eq_dec_example : exists pf, block_eq_dec BlkWatadMajmu BlkWatadMajmu = left pf.
-Proof. eexists. reflexivity. Qed.
+(** Example: block_eq_dec distinguishes all four block types from each other. *)
+Example block_eq_dec_cross :
+  (exists pf, block_eq_dec BlkSababKhafif BlkSababThaqil = right pf) /\
+  (exists pf, block_eq_dec BlkWatadMajmu BlkWatadMafruq = right pf) /\
+  (exists pf, block_eq_dec BlkSababKhafif BlkWatadMajmu = right pf) /\
+  (exists pf, block_eq_dec BlkSababThaqil BlkWatadMafruq = right pf).
+Proof. repeat split; eexists; reflexivity. Qed.
 
 (** Counterexample: block_eq_dec returns right for different blocks *)
 Example block_eq_dec_counterexample : exists pf, block_eq_dec BlkSababKhafif BlkWatadMajmu = right pf.
@@ -1477,10 +1529,17 @@ Example foot_blocks_unique_witness :
   blocks_to_pattern mustafilun_blocks = mustafilun.
 Proof. reflexivity. Qed.
 
-(** Example: the alternative also reconstructs correctly *)
-Example foot_blocks_unique_example :
-  blocks_to_pattern [BlkSababKhafif; BlkWatadMafruq; BlkSababKhafif] = mustafilun.
-Proof. reflexivity. Qed.
+(** Example: all 8 foot decompositions reconstruct correctly (full coverage). *)
+Example foot_blocks_all_correct :
+  blocks_to_pattern (foot_blocks Faulun) = foot_pattern Faulun /\
+  blocks_to_pattern (foot_blocks Failun) = foot_pattern Failun /\
+  blocks_to_pattern (foot_blocks Mafailun) = foot_pattern Mafailun /\
+  blocks_to_pattern (foot_blocks Mustafilun) = foot_pattern Mustafilun /\
+  blocks_to_pattern (foot_blocks Failatun) = foot_pattern Failatun /\
+  blocks_to_pattern (foot_blocks Mafulatu) = foot_pattern Mafulatu /\
+  blocks_to_pattern (foot_blocks Mutafailun) = foot_pattern Mutafailun /\
+  blocks_to_pattern (foot_blocks Mufaalatun) = foot_pattern Mufaalatun.
+Proof. repeat split; reflexivity. Qed.
 
 (** Counterexample: the two decompositions are distinct *)
 Example foot_blocks_unique_counterexample :
@@ -1800,15 +1859,22 @@ Proof.
     reflexivity.
 Qed.
 
-(** Witness: pattern_to_foot_unique — faulun maps back *)
-Example pattern_to_foot_unique_witness :
-  foot_pattern Faulun = faulun.
-Proof. reflexivity. Qed.
+(** Witness: pattern_to_foot and foot_pattern are mutual inverses on all 8 feet. *)
+Example foot_pattern_roundtrip :
+  pattern_to_foot (foot_pattern Faulun) = Some Faulun /\
+  pattern_to_foot (foot_pattern Failun) = Some Failun /\
+  pattern_to_foot (foot_pattern Mafailun) = Some Mafailun /\
+  pattern_to_foot (foot_pattern Mustafilun) = Some Mustafilun /\
+  pattern_to_foot (foot_pattern Failatun) = Some Failatun /\
+  pattern_to_foot (foot_pattern Mafulatu) = Some Mafulatu /\
+  pattern_to_foot (foot_pattern Mutafailun) = Some Mutafailun /\
+  pattern_to_foot (foot_pattern Mufaalatun) = Some Mufaalatun.
+Proof. repeat split; reflexivity. Qed.
 
-(** Example: pattern_to_foot_unique — mufaalatun maps back *)
+(** Example: pattern_to_foot_unique — the result, when mapped back, agrees. *)
 Example pattern_to_foot_unique_example :
-  foot_pattern Mufaalatun = mufaalatun.
-Proof. reflexivity. Qed.
+  forall f, pattern_to_foot (foot_pattern f) = Some f.
+Proof. intros f. destruct f; reflexivity. Qed.
 
 (** Counterexample: pattern_to_foot_unique — wrong foot gives wrong pattern *)
 Example pattern_to_foot_unique_counterexample :
