@@ -4767,6 +4767,28 @@ Proof.
   injection H as Hp; subst p; reflexivity.
 Qed.
 
+(** ʿaṣb preserves morae on arbitrary patterns, not just feet.
+    Replacing M→S at index 4 merges two consecutive Shorts into
+    one Long (1+1 morae → 2 morae), always preserving the total. *)
+Lemma ʿaṣb_preserves_morae_general : forall p p',
+  apply_ʿaṣb p = Some p' -> pattern_morae p' = pattern_morae p.
+Proof.
+  intros p p' H. unfold apply_ʿaṣb in H.
+  destruct p as [|w1 [|w2 [|w3 p_rest]]]; simpl in H; try discriminate.
+  - (* 1 syllable *) destruct w1; simpl in H; discriminate.
+  - (* 2 syllables *) destruct w1, w2; simpl in H; discriminate.
+  - (* 3+ syllables *)
+    destruct w1; destruct w2; destruct w3; simpl in H;
+    destruct p_rest as [|w4 p_rest']; simpl in H; try discriminate;
+    try (destruct w4; simpl in H; try discriminate;
+         try (rewrite pattern_letters_roundtrip in H;
+              injection H as <-; simpl; lia);
+         destruct p_rest' as [|w5 p_rest'']; simpl in H; try discriminate;
+         try (destruct w5; simpl in H; try discriminate;
+              rewrite pattern_letters_roundtrip in H;
+              injection H as <-; simpl; lia)).
+Qed.
+
 (** Waqṣ and ʿaql delete a mutaḥarrik (Short syllable), reducing morae by 1. *)
 Lemma waqṣ_reduces_morae : forall p p',
   apply_waqṣ p = Some p' -> S (pattern_morae p') = pattern_morae p.
