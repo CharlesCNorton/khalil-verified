@@ -7796,6 +7796,73 @@ Example rubai_counterexample_lines :
   is_valid_rubai (mk_qasida matla [line; line] Hazaj r) = false.
 Proof. vm_compute. reflexivity. Qed.
 
+(** ** Maqṭūʿa *)
+
+(** A maqṭūʿa (مقطوعة, "fragment") is a relaxed qaṣīda: 2–5 lines,
+    same meter and ʿajuz rhyme throughout, but the matlaʿ is optional
+    (the ṣadr of the first line need not rhyme). *)
+
+Definition is_valid_maqtua (q : qasida) : bool :=
+  let m := qas_meter q in
+  let r := qas_rhyme q in
+  forallb (fun b =>
+    is_valid_hemistich (ab_sadr b) m &&
+    is_valid_hemistich (ab_ajuz b) m)
+    (qasida_lines q) &&
+  is_rhyme_consistent (qasida_lines q) r &&
+  Nat.leb 2 (length (qasida_lines q)) &&
+  Nat.leb (length (qasida_lines q)) 5.
+
+(** A valid maqṭūʿa has between 2 and 5 lines. *)
+Lemma maqtua_length_bounds : forall q,
+  is_valid_maqtua q = true ->
+  2 <= length (qasida_lines q) /\ length (qasida_lines q) <= 5.
+Proof.
+  intros q H. unfold is_valid_maqtua in H.
+  apply Bool.andb_true_iff in H. destruct H as [H Hmax].
+  apply Bool.andb_true_iff in H. destruct H as [_ Hmin].
+  apply Nat.leb_le in Hmin. apply Nat.leb_le in Hmax.
+  split; assumption.
+Qed.
+
+(** Witness: valid 2-line maqṭūʿa without matlaʿ (ṣadr rhyme ≠ ʿajuz rhyme). *)
+Example maqtua_witness :
+  let h := meter_pattern Hazaj in
+  let r := mk_rhyme_id 1 Kasra in
+  let r2 := mk_rhyme_id 2 Kasra in
+  let line1 := mk_annotated_bayt h h r2 r in
+  let line2 := mk_annotated_bayt h h r2 r in
+  is_valid_maqtua (mk_qasida line1 [line2] Hazaj r) = true.
+Proof. vm_compute. reflexivity. Qed.
+
+(** The same poem fails as a qaṣīda (matlaʿ required but ṣadr rhyme ≠ ʿajuz rhyme). *)
+Example maqtua_not_qasida :
+  let h := meter_pattern Hazaj in
+  let r := mk_rhyme_id 1 Kasra in
+  let r2 := mk_rhyme_id 2 Kasra in
+  let line1 := mk_annotated_bayt h h r2 r in
+  let line2 := mk_annotated_bayt h h r2 r in
+  is_valid_qasida (mk_qasida line1 [line2] Hazaj r) = false.
+Proof. vm_compute. reflexivity. Qed.
+
+(** Counterexample: 1-line poem is too short for maqṭūʿa. *)
+Example maqtua_counterexample_short :
+  let h := meter_pattern Hazaj in
+  let r := mk_rhyme_id 1 Kasra in
+  let line1 := mk_annotated_bayt h h r r in
+  is_valid_maqtua (mk_qasida line1 [] Hazaj r) = false.
+Proof. vm_compute. reflexivity. Qed.
+
+(** Counterexample: 6-line poem exceeds maqṭūʿa maximum. *)
+Example maqtua_counterexample_long :
+  let h := meter_pattern Hazaj in
+  let r := mk_rhyme_id 1 Kasra in
+  let r2 := mk_rhyme_id 2 Kasra in
+  let line := mk_annotated_bayt h h r2 r in
+  is_valid_maqtua (mk_qasida line
+    [line; line; line; line; line] Hazaj r) = false.
+Proof. vm_compute. reflexivity. Qed.
+
 (** End of Section 12: Poem Structure *)
 
 (** * Conclusion *)
