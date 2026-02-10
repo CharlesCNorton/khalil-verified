@@ -6520,9 +6520,12 @@ Qed.
 
 (** ** Poem Validity *)
 
-(** A poem is valid if all lines match the same meter. *)
+(** A poem is valid if it is non-empty and all lines match the same meter. *)
 Definition is_valid_poem (p : poem) (m : meter) : bool :=
-  forallb (fun b => is_valid_bayt b m) p.
+  match p with
+  | [] => false
+  | _ => forallb (fun b => is_valid_bayt b m) p
+  end.
 
 (** ** Matlaʿ Detection *)
 
@@ -6586,9 +6589,9 @@ Example bayt_counterexample_gibberish :
   is_valid_bayt (mk_bayt [Short; Short; Short] [Short; Short; Short]) Tawil = false.
 Proof. vm_compute. reflexivity. Qed.
 
-(** Counterexample: empty poem is trivially valid (vacuous truth) *)
+(** Counterexample: empty poem is rejected (non-emptiness enforced) *)
 Example poem_counterexample_empty :
-  is_valid_poem [] Tawil = true.
+  is_valid_poem [] Tawil = false.
 Proof. reflexivity. Qed.
 
 (** ** Rhyme-Aware Poem Structure *)
