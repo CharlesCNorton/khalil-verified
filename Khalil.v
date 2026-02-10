@@ -44,7 +44,8 @@ Import ListNotations.
 
 Inductive weight : Type :=
   | Short : weight
-  | Long : weight.
+  | Long : weight
+  | SuperLong : weight.
 
 (** ** Weight Pattern *)
 
@@ -56,19 +57,20 @@ Definition pattern := list weight.
 
 Definition weight_eq_dec (w1 w2 : weight) : {w1 = w2} + {w1 <> w2}.
 Proof.
-  destruct w1, w2.
-  - left. reflexivity.
-  - right. discriminate.
-  - right. discriminate.
-  - left. reflexivity.
+  destruct w1, w2; try (left; reflexivity); right; discriminate.
 Defined.
 
-(** weight_eq_dec covers all four constructor pairs. *)
+(** weight_eq_dec covers all nine constructor pairs. *)
 Example weight_eq_dec_full_coverage :
   (exists pf, weight_eq_dec Short Short = left pf) /\
   (exists pf, weight_eq_dec Long Long = left pf) /\
+  (exists pf, weight_eq_dec SuperLong SuperLong = left pf) /\
   (exists pf, weight_eq_dec Short Long = right pf) /\
-  (exists pf, weight_eq_dec Long Short = right pf).
+  (exists pf, weight_eq_dec Short SuperLong = right pf) /\
+  (exists pf, weight_eq_dec Long Short = right pf) /\
+  (exists pf, weight_eq_dec Long SuperLong = right pf) /\
+  (exists pf, weight_eq_dec SuperLong Short = right pf) /\
+  (exists pf, weight_eq_dec SuperLong Long = right pf).
 Proof.
   repeat split; eexists; reflexivity.
 Qed.
@@ -79,6 +81,7 @@ Definition weight_eqb (w1 w2 : weight) : bool :=
   match w1, w2 with
   | Short, Short => true
   | Long, Long => true
+  | SuperLong, SuperLong => true
   | _, _ => false
   end.
 
@@ -98,12 +101,17 @@ Proof.
   - apply ReflectF. intros H. subst. destruct w2; discriminate.
 Qed.
 
-(** weight_eqb full 2x2 truth table. *)
+(** weight_eqb full 3x3 truth table. *)
 Example weight_eqb_full_table :
   weight_eqb Short Short = true /\
   weight_eqb Long Long = true /\
+  weight_eqb SuperLong SuperLong = true /\
   weight_eqb Short Long = false /\
-  weight_eqb Long Short = false.
+  weight_eqb Short SuperLong = false /\
+  weight_eqb Long Short = false /\
+  weight_eqb Long SuperLong = false /\
+  weight_eqb SuperLong Short = false /\
+  weight_eqb SuperLong Long = false.
 Proof.
   repeat split; reflexivity.
 Qed.
@@ -219,6 +227,7 @@ Definition weight_morae (w : weight) : nat :=
   match w with
   | Short => 1
   | Long => 2
+  | SuperLong => 3
   end.
 
 Fixpoint pattern_morae (p : pattern) : nat :=
@@ -232,15 +241,16 @@ Proof. reflexivity. Qed.
 
 (** ** Weight Enumeration *)
 
-(** The type weight has exactly two inhabitants. *)
+(** The type weight has exactly three inhabitants. *)
 
-Definition all_weights : list weight := [Short; Long].
+Definition all_weights : list weight := [Short; Long; SuperLong].
 
 Lemma all_weights_complete : forall w : weight, In w all_weights.
 Proof.
   intros w. destruct w.
   - left. reflexivity.
   - right. left. reflexivity.
+  - right. right. left. reflexivity.
 Qed.
 
 (** Counterexample: an incomplete enumeration fails completeness.
@@ -257,12 +267,12 @@ Qed.
 Lemma all_weights_nodup : NoDup all_weights.
 Proof.
   constructor.
-  - simpl. intros [H | H].
-    + discriminate.
-    + contradiction.
+  - simpl. intros [H | [H | H]]; try discriminate; contradiction.
   - constructor.
-    + simpl. intros H. contradiction.
+    + simpl. intros [H | H]; try discriminate; contradiction.
     + constructor.
+      * simpl. intros H. contradiction.
+      * constructor.
 Qed.
 
 (** Counterexample: ~ NoDup [Short; Short] *)
@@ -316,10 +326,18 @@ Definition letter_seq := list letter.
 (** A Short syllable is one mutaḥarrik letter (Cv).
     A Long syllable is one mutaḥarrik followed by one sākin (CvC or CvV). *)
 
+(** SuperLong syllables (CvCC/CvVC) do not arise from the standard
+    letter-level decomposition of canonical feet. They are introduced
+    only by the ʿilla operation tadhyīl, which adds an extra sākin
+    after a final watad majmūʿ. At the letter level, SuperLong is
+    represented identically to Long — the distinction is prosodic,
+    not orthographic. *)
+
 Definition syllable_to_letters (w : weight) : letter_seq :=
   match w with
   | Short => [Mutaharrik]
   | Long => [Mutaharrik; Sakin]
+  | SuperLong => [Mutaharrik; Sakin]
   end.
 
 (** ** Pattern to Letters *)
@@ -353,6 +371,21 @@ Fixpoint letters_to_pattern (ls : letter_seq) : option pattern :=
   end.
 
 (** ** Round-trip correctness *)
+
+(** One-step unfolding lemmas for letters_to_pattern. *)
+
+Lemma letters_to_pattern_cons_M_M : forall ls,
+  letters_to_pattern (Mutaharrik :: Mutaharrik :: ls) =
+  match letters_to_pattern (Mutaharrik :: ls) with
+  | Some p => Some (Short :: p) | None => None end.
+Proof. reflexivity. Qed.
+
+Lemma letters_to_pattern_cons_M_S : forall ls,
+  letters_to_pattern (Mutaharrik :: Sakin :: ls) =
+  match letters_to_pattern ls with
+  | Some p => Some (Long :: p) | None => None end.
+Proof. reflexivity. Qed.
+
 
 Lemma pattern_to_letters_hd : forall p l ls,
   pattern_to_letters p = l :: ls -> l = Mutaharrik.
@@ -391,10 +424,71 @@ Proof.
         subst l. simpl. exact IH.
     + (* Long: emits [Mutaharrik; Sakin] ++ rest *)
       exact IH.
+    + (* SuperLong: at letter level, identical to Long *)
+      exact IH.
 Qed.
 
+(** ** Weight Normalization *)
+
+(** SuperLong and Long are indistinguishable at the letter level.
+    Normalization collapses SuperLong to Long, characterizing the
+    information lost by the syllable→letter→syllable round-trip. *)
+
+Definition normalize_weight (w : weight) : weight :=
+  match w with
+  | SuperLong => Long
+  | w => w
+  end.
+
+Definition normalize_pattern (p : pattern) : pattern :=
+  map normalize_weight p.
+
+Lemma normalize_pattern_length : forall p,
+  length (normalize_pattern p) = length p.
+Proof. intros p. unfold normalize_pattern. apply map_length. Qed.
+
+Lemma normalize_pattern_app : forall p1 p2,
+  normalize_pattern (p1 ++ p2) = normalize_pattern p1 ++ normalize_pattern p2.
+Proof. intros. unfold normalize_pattern. apply map_app. Qed.
+
+Lemma normalize_idempotent : forall p,
+  normalize_pattern (normalize_pattern p) = normalize_pattern p.
+Proof.
+  induction p as [|w p' IH]; [reflexivity|].
+  simpl. f_equal. 2: exact IH. destruct w; reflexivity.
+Qed.
+
+(** ** No-SuperLong Predicate *)
+
+(** A pattern is letter-normal if it contains no SuperLong weights. *)
+
+Fixpoint no_superlong (p : pattern) : bool :=
+  match p with
+  | [] => true
+  | SuperLong :: _ => false
+  | _ :: rest => no_superlong rest
+  end.
+
+Lemma no_superlong_normalize : forall p,
+  no_superlong p = true -> normalize_pattern p = p.
+Proof.
+  induction p as [|w p' IH]; [reflexivity|].
+  simpl. destruct w; intros H; try discriminate.
+  - simpl. f_equal. exact (IH H).
+  - simpl. f_equal. exact (IH H).
+Qed.
+
+Lemma normalize_no_superlong : forall p,
+  no_superlong (normalize_pattern p) = true.
+Proof.
+  induction p as [|w p' IH]; [reflexivity|].
+  simpl. destruct w; simpl; exact IH.
+Qed.
+
+(** ** Round-trip correctness *)
+
 Lemma pattern_letters_roundtrip : forall p : pattern,
-  letters_to_pattern (pattern_to_letters p) = Some p.
+  letters_to_pattern (pattern_to_letters p) = Some (normalize_pattern p).
 Proof.
   induction p as [|w p' IH].
   - reflexivity.
@@ -403,10 +497,10 @@ Proof.
       change (pattern_to_letters (Short :: p'))
         with (Mutaharrik :: pattern_to_letters p').
       destruct (pattern_to_letters p') as [|l ls] eqn:E.
-      * (* pattern_to_letters p' = [] → IH: Some [] = Some p' *)
-        simpl. simpl in IH. injection IH as IH'. subst p'. reflexivity.
-      * (* pattern_to_letters p' = l :: ls → IH: letters_to_pattern (l :: ls) = Some p' *)
-        assert (Hl : l = Mutaharrik) by (exact (pattern_to_letters_hd _ _ _ E)).
+      * simpl. simpl in IH. injection IH as IH'.
+        assert (Hn : normalize_pattern p' = []) by (symmetry; exact IH').
+        destruct p'; [reflexivity | simpl in Hn; discriminate].
+      * assert (Hl : l = Mutaharrik) by (exact (pattern_to_letters_hd _ _ _ E)).
         subst l.
         change (letters_to_pattern (Mutaharrik :: Mutaharrik :: ls))
           with (match letters_to_pattern (Mutaharrik :: ls) with
@@ -418,23 +512,23 @@ Proof.
       change (pattern_to_letters (Long :: p'))
         with (Mutaharrik :: Sakin :: pattern_to_letters p').
       simpl. rewrite IH. reflexivity.
+    + (* SuperLong: letter-level identical to Long; roundtrip yields Long *)
+      change (pattern_to_letters (SuperLong :: p'))
+        with (Mutaharrik :: Sakin :: pattern_to_letters p').
+      simpl. rewrite IH. reflexivity.
+Qed.
+
+(** Corollary: exact round-trip for patterns without SuperLong. *)
+
+Lemma pattern_letters_roundtrip_normal : forall p : pattern,
+  no_superlong p = true ->
+  letters_to_pattern (pattern_to_letters p) = Some p.
+Proof.
+  intros p Hns. rewrite pattern_letters_roundtrip.
+  rewrite no_superlong_normalize by exact Hns. reflexivity.
 Qed.
 
 (** ** Well-formedness characterizes convertibility *)
-
-(** One-step unfolding lemmas for letters_to_pattern. *)
-
-Lemma letters_to_pattern_cons_M_M : forall ls,
-  letters_to_pattern (Mutaharrik :: Mutaharrik :: ls) =
-  match letters_to_pattern (Mutaharrik :: ls) with
-  | Some p => Some (Short :: p) | None => None end.
-Proof. reflexivity. Qed.
-
-Lemma letters_to_pattern_cons_M_S : forall ls,
-  letters_to_pattern (Mutaharrik :: Sakin :: ls) =
-  match letters_to_pattern ls with
-  | Some p => Some (Long :: p) | None => None end.
-Proof. reflexivity. Qed.
 
 (** Forward: well-formed letter sequences convert successfully.
     Uses strong induction on length because the M::S::rest case
@@ -702,7 +796,7 @@ Proof.
              with (Mutaharrik :: pattern_to_letters p_tail).
            assert (Hwf_pt : wf_letter_seq (pattern_to_letters p_tail) = true)
              by (apply pattern_to_letters_wf).
-           assert (Hrt : letters_to_pattern (pattern_to_letters p_tail) = Some p_tail)
+           assert (Hrt : letters_to_pattern (pattern_to_letters p_tail) = Some (normalize_pattern p_tail))
              by (apply pattern_letters_roundtrip).
            destruct (pattern_to_letters p_tail) as [|l ls'] eqn:Ept.
            ++ simpl. exists [Short]. split. reflexivity.
@@ -710,9 +804,35 @@ Proof.
            ++ assert (Hl : l = Mutaharrik) by (exact (pattern_to_letters_hd _ _ _ Ept)).
               subst l.
               rewrite letters_to_pattern_cons_M_M. rewrite Hrt.
-              exists (Short :: p_tail). split. reflexivity. reflexivity.
+              exists (Short :: normalize_pattern p_tail). split. reflexivity.
+              simpl. rewrite normalize_pattern_length. reflexivity.
         -- (* i >= 2: sākin is in p_tail's letters *)
            change (nth_error (Mutaharrik :: Sakin :: pattern_to_letters p_tail) (S (S i'')))
+             with (nth_error (pattern_to_letters p_tail) i'') in Hi.
+           destruct (IH i'' Hi) as [q [Hq Hqlen]].
+           change (delete_at (S (S i'')) (Mutaharrik :: Sakin :: pattern_to_letters p_tail))
+             with (Mutaharrik :: Sakin :: delete_at i'' (pattern_to_letters p_tail)).
+           rewrite letters_to_pattern_cons_M_S. rewrite Hq.
+           exists (Long :: q). split. reflexivity. simpl. lia.
+    + (* SuperLong: letter-level identical to Long *)
+      change (pattern_to_letters (SuperLong :: p_tail))
+        with (Mutaharrik :: Sakin :: pattern_to_letters p_tail) in *.
+      destruct i as [|i'].
+      * simpl in Hi. discriminate.
+      * destruct i' as [|i''].
+        -- change (delete_at 1 (Mutaharrik :: Sakin :: pattern_to_letters p_tail))
+             with (Mutaharrik :: pattern_to_letters p_tail).
+           assert (Hrt : letters_to_pattern (pattern_to_letters p_tail) = Some (normalize_pattern p_tail))
+             by (apply pattern_letters_roundtrip).
+           destruct (pattern_to_letters p_tail) as [|l ls'] eqn:Ept.
+           ++ simpl. exists [Short]. split. reflexivity.
+              destruct p_tail; [reflexivity | simpl in Ept; destruct w; discriminate].
+           ++ assert (Hl : l = Mutaharrik) by (exact (pattern_to_letters_hd _ _ _ Ept)).
+              subst l.
+              rewrite letters_to_pattern_cons_M_M. rewrite Hrt.
+              exists (Short :: normalize_pattern p_tail). split. reflexivity.
+              simpl. rewrite normalize_pattern_length. reflexivity.
+        -- change (nth_error (Mutaharrik :: Sakin :: pattern_to_letters p_tail) (S (S i'')))
              with (nth_error (pattern_to_letters p_tail) i'') in Hi.
            destruct (IH i'' Hi) as [q [Hq Hqlen]].
            change (delete_at (S (S i'')) (Mutaharrik :: Sakin :: pattern_to_letters p_tail))
@@ -723,20 +843,22 @@ Qed.
 
 (** Deleting a sākin reduces mora count by exactly 1 (Long → Short = -1 mora). *)
 Lemma delete_sakin_reduces_morae : forall p i,
+  no_superlong p = true ->
   nth_error (pattern_to_letters p) i = Some Sakin ->
   exists p', letters_to_pattern (delete_at i (pattern_to_letters p)) = Some p' /\
              S (pattern_morae p') = pattern_morae p.
 Proof.
-  induction p as [|w p_tail IH]; intros i Hi.
+  induction p as [|w p_tail IH]; intros i Hns Hi.
   - simpl in Hi. destruct i; discriminate.
   - destruct w.
     + (* Short *)
+      simpl in Hns.
       change (pattern_to_letters (Short :: p_tail))
         with (Mutaharrik :: pattern_to_letters p_tail) in *.
       destruct i as [|i'].
       * simpl in Hi. discriminate.
       * simpl in Hi.
-        destruct (IH i' Hi) as [q [Hq Hqmor]].
+        destruct (IH i' Hns Hi) as [q [Hq Hqmor]].
         assert (Hwf : wf_letter_seq (delete_at i' (pattern_to_letters p_tail)) = true).
         { exact (some_implies_wf_letter_seq _ q Hq). }
         assert (Hne : delete_at i' (pattern_to_letters p_tail) <> []).
@@ -754,6 +876,7 @@ Proof.
           with (Mutaharrik :: delete_at i' (pattern_to_letters p_tail)).
         exists (Short :: q). split. exact Hpre. simpl. lia.
     + (* Long *)
+      simpl in Hns.
       change (pattern_to_letters (Long :: p_tail))
         with (Mutaharrik :: Sakin :: pattern_to_letters p_tail) in *.
       destruct i as [|i'].
@@ -763,7 +886,7 @@ Proof.
            change (delete_at 1 (Mutaharrik :: Sakin :: pattern_to_letters p_tail))
              with (Mutaharrik :: pattern_to_letters p_tail).
            assert (Hrt : letters_to_pattern (pattern_to_letters p_tail) = Some p_tail)
-             by (apply pattern_letters_roundtrip).
+             by (apply pattern_letters_roundtrip_normal; exact Hns).
            destruct (pattern_to_letters p_tail) as [|l ls'] eqn:Ept.
            ++ simpl. exists [Short]. split. reflexivity.
               destruct p_tail; [simpl; reflexivity | simpl in Ept; destruct w; discriminate].
@@ -774,11 +897,13 @@ Proof.
         -- (* i >= 2 *)
            change (nth_error (Mutaharrik :: Sakin :: pattern_to_letters p_tail) (S (S i'')))
              with (nth_error (pattern_to_letters p_tail) i'') in Hi.
-           destruct (IH i'' Hi) as [q [Hq Hqmor]].
+           destruct (IH i'' Hns Hi) as [q [Hq Hqmor]].
            change (delete_at (S (S i'')) (Mutaharrik :: Sakin :: pattern_to_letters p_tail))
              with (Mutaharrik :: Sakin :: delete_at i'' (pattern_to_letters p_tail)).
            rewrite letters_to_pattern_cons_M_S. rewrite Hq.
            exists (Long :: q). split. reflexivity. simpl. lia.
+    + (* SuperLong: excluded by no_superlong hypothesis *)
+      simpl in Hns. discriminate.
 Qed.
 
 (** ** Section 2 Substantive Examples *)
@@ -3715,20 +3840,17 @@ Proof. reflexivity. Qed.
 
 (** Tadhyīl: add one sākin letter after the final watad majmūʿ.
     At the syllable level, this extends the final Long by one mora,
-    which in practice means the final syllable becomes super-heavy.
-    We model this as appending a Long syllable (the extra sākin
-    merges with the preceding watad's final sākin to form CvCC).
-    Requires the pattern to end in watad majmūʿ (Short; Long).
-    NOTE: at the syllable-weight level, tadhyīl and tarfīl are
-    identical operations. The distinction is sub-syllabic and would
-    require a richer weight type (e.g., SuperLong) to capture. *)
+    producing a super-heavy syllable (CvCC). We model this as
+    appending a SuperLong syllable — distinguishing it from tarfīl,
+    which adds a full sabab khafīf (a normal Long).
+    Requires the pattern to end in watad majmūʿ (Short; Long). *)
 Definition apply_tadhyīl (p : pattern) : option pattern :=
-  if ends_with_watad_majmu p then Some (p ++ [Long])
+  if ends_with_watad_majmu p then Some (p ++ [SuperLong])
   else None.
 
-(** Tadhyīl on failun: append Long → [Long; Short; Long; Long]. *)
+(** Tadhyīl on failun: append SuperLong → [Long; Short; Long; SuperLong]. *)
 Example tadhyīl_failun :
-  apply_tadhyīl failun = Some [Long; Short; Long; Long].
+  apply_tadhyīl failun = Some [Long; Short; Long; SuperLong].
 Proof. reflexivity. Qed.
 
 (** Counterexample: tadhyīl fails on empty *)
@@ -3794,15 +3916,43 @@ Example ḥadhādh_rejects_mafruq :
   apply_ḥadhādh mafulatu = None.
 Proof. reflexivity. Qed.
 
-(** Tarfīl and tadhyīl are extensionally equal at the syllable-weight
-    level. The traditional distinction (tarfīl adds a full sabab,
-    tadhyīl adds a single sākin letter) is sub-syllabic and would
-    require a richer weight type (e.g., SuperLong) to capture. *)
-Lemma tarfīl_eq_tadhyīl : forall p,
-  apply_tarfīl p = apply_tadhyīl p.
+(** Tarfīl and tadhyīl are now distinguished by the SuperLong weight.
+    Tarfīl appends a full sabab khafīf (Long); tadhyīl appends a
+    single extra sākin, producing a super-heavy syllable (SuperLong).
+    On any pattern where both apply, their results differ. *)
+Lemma tarfīl_neq_tadhyīl : forall p p1 p2,
+  apply_tarfīl p = Some p1 ->
+  apply_tadhyīl p = Some p2 ->
+  p1 <> p2.
 Proof.
-  intros p. unfold apply_tarfīl, apply_tadhyīl. reflexivity.
+  intros p p1 p2 H1 H2.
+  unfold apply_tarfīl in H1. unfold apply_tadhyīl in H2.
+  destruct (ends_with_watad_majmu p) eqn:E; [|discriminate].
+  injection H1 as <-. injection H2 as <-.
+  intro Hcontra.
+  assert (Hlast : last (p ++ [Long]) Short = last (p ++ [SuperLong]) Short)
+    by (rewrite Hcontra; reflexivity).
+  rewrite !last_last in Hlast. discriminate.
 Qed.
+
+(** Tarfīl and tadhyīl agree after normalization (SuperLong → Long). *)
+Lemma tarfīl_tadhyīl_normalize : forall p p1 p2,
+  apply_tarfīl p = Some p1 ->
+  apply_tadhyīl p = Some p2 ->
+  normalize_pattern p1 = normalize_pattern p2.
+Proof.
+  intros p p1 p2 H1 H2.
+  unfold apply_tarfīl in H1. unfold apply_tadhyīl in H2.
+  destruct (ends_with_watad_majmu p); [|discriminate].
+  injection H1 as <-. injection H2 as <-.
+  rewrite !normalize_pattern_app. reflexivity.
+Qed.
+
+(** Witness: tarfīl and tadhyīl produce different results on failun. *)
+Example tarfīl_tadhyīl_distinct :
+  apply_tarfīl failun = Some [Long; Short; Long; Long] /\
+  apply_tadhyīl failun = Some [Long; Short; Long; SuperLong].
+Proof. split; reflexivity. Qed.
 
 (** Kashf: drop the last letter of the final watad mafrūq.
     At the syllable level, the final Short of watad mafrūq
@@ -4785,49 +4935,54 @@ Qed.
 
 (** Helper: extract the sākin-deletion mora core. *)
 Lemma sākin_delete_reduces_morae : forall p idx p',
+  no_superlong p = true ->
   nth_error (pattern_to_letters p) idx = Some Sakin ->
   letters_to_pattern (delete_at idx (pattern_to_letters p)) = Some p' ->
   S (pattern_morae p') = pattern_morae p.
 Proof.
-  intros p idx p' Hnth Hconv.
-  destruct (delete_sakin_reduces_morae p idx Hnth) as [q [Hq Hqmor]].
+  intros p idx p' Hns Hnth Hconv.
+  destruct (delete_sakin_reduces_morae p idx Hns Hnth) as [q [Hq Hqmor]].
   rewrite Hq in Hconv. injection Hconv as <-. exact Hqmor.
 Qed.
 
 Lemma khabn_reduces_morae : forall p p',
+  no_superlong p = true ->
   apply_khabn p = Some p' -> S (pattern_morae p') = pattern_morae p.
 Proof.
-  intros p p' H. unfold apply_khabn in H.
+  intros p p' Hns H. unfold apply_khabn in H.
   set (ls := pattern_to_letters p) in *.
   destruct (nth_error ls 1) as [[|]|] eqn:E; try discriminate.
-  exact (sākin_delete_reduces_morae p 1 p' E H).
+  exact (sākin_delete_reduces_morae p 1 p' Hns E H).
 Qed.
 
 Lemma tayy_reduces_morae : forall p p',
+  no_superlong p = true ->
   apply_tayy p = Some p' -> S (pattern_morae p') = pattern_morae p.
 Proof.
-  intros p p' H. unfold apply_tayy in H.
+  intros p p' Hns H. unfold apply_tayy in H.
   set (ls := pattern_to_letters p) in *.
   destruct (nth_error ls 3) as [[|]|] eqn:E; try discriminate.
-  exact (sākin_delete_reduces_morae p 3 p' E H).
+  exact (sākin_delete_reduces_morae p 3 p' Hns E H).
 Qed.
 
 Lemma qabḍ_reduces_morae : forall p p',
+  no_superlong p = true ->
   apply_qabḍ p = Some p' -> S (pattern_morae p') = pattern_morae p.
 Proof.
-  intros p p' H. unfold apply_qabḍ in H.
+  intros p p' Hns H. unfold apply_qabḍ in H.
   set (ls := pattern_to_letters p) in *.
   destruct (nth_error ls 4) as [[|]|] eqn:E; try discriminate.
-  exact (sākin_delete_reduces_morae p 4 p' E H).
+  exact (sākin_delete_reduces_morae p 4 p' Hns E H).
 Qed.
 
 Lemma kaff_reduces_morae : forall p p',
+  no_superlong p = true ->
   apply_kaff p = Some p' -> S (pattern_morae p') = pattern_morae p.
 Proof.
-  intros p p' H. unfold apply_kaff in H.
+  intros p p' Hns H. unfold apply_kaff in H.
   set (ls := pattern_to_letters p) in *.
   destruct (nth_error ls 6) as [[|]|] eqn:E; try discriminate.
-  exact (sākin_delete_reduces_morae p 6 p' E H).
+  exact (sākin_delete_reduces_morae p 6 p' Hns E H).
 Qed.
 
 (** ** Mora-count properties of mutaḥarrik-modifying zihāf *)
@@ -4835,30 +4990,34 @@ Qed.
 (** Iḍmār, shamm, and ʿaṣb preserve morae: they make a mutaḥarrik
     quiescent, merging two Shorts into one Long (1+1 = 2). *)
 Lemma iḍmār_preserves_morae : forall p p',
+  no_superlong p = true ->
   apply_iḍmār p = Some p' -> pattern_morae p' = pattern_morae p.
 Proof.
-  intros p p' H. unfold apply_iḍmār in H.
+  intros p p' Hns H. unfold apply_iḍmār in H.
   destruct p as [|[] [|[] p_rest]]; try (simpl in H; discriminate).
   - (* Short :: Short :: p_rest *)
+    simpl in Hns.
     change (pattern_to_letters (Short :: Short :: p_rest))
       with (Mutaharrik :: Mutaharrik :: pattern_to_letters p_rest) in H.
     simpl nth_error in H. simpl replace_at in H.
     rewrite letters_to_pattern_cons_M_S in H.
-    rewrite pattern_letters_roundtrip in H.
+    rewrite (pattern_letters_roundtrip_normal _ Hns) in H.
     injection H as <-. simpl. lia.
 Qed.
 
 Lemma shamm_preserves_morae : forall p p',
+  no_superlong p = true ->
   apply_shamm p = Some p' -> pattern_morae p' = pattern_morae p.
 Proof.
-  intros p p' H. unfold apply_shamm in H.
+  intros p p' Hns H. unfold apply_shamm in H.
   destruct p as [|[] [|[] p_rest]]; try (simpl in H; discriminate).
   - (* Short :: Short :: p_rest *)
+    simpl in Hns.
     change (pattern_to_letters (Short :: Short :: p_rest))
       with (Mutaharrik :: Mutaharrik :: pattern_to_letters p_rest) in H.
     simpl nth_error in H. simpl replace_at in H.
     rewrite letters_to_pattern_cons_M_S in H.
-    rewrite pattern_letters_roundtrip in H.
+    rewrite (pattern_letters_roundtrip_normal _ Hns) in H.
     injection H as <-. simpl. lia.
 Qed.
 
@@ -4873,31 +5032,35 @@ Qed.
     Replacing M→S at index 4 merges two consecutive Shorts into
     one Long (1+1 morae → 2 morae), always preserving the total. *)
 Lemma ʿaṣb_preserves_morae_general : forall p p',
+  no_superlong p = true ->
   apply_ʿaṣb p = Some p' -> pattern_morae p' = pattern_morae p.
 Proof.
-  intros p p' H. unfold apply_ʿaṣb in H.
+  intros p p' Hns H. unfold apply_ʿaṣb in H.
   destruct p as [|w1 [|w2 [|w3 p_rest]]]; simpl in H; try discriminate.
   - (* 1 syllable *) destruct w1; simpl in H; discriminate.
   - (* 2 syllables *) destruct w1, w2; simpl in H; discriminate.
   - (* 3+ syllables *)
-    destruct w1; destruct w2; destruct w3; simpl in H;
+    destruct w1; destruct w2; destruct w3; simpl in H; simpl in Hns;
+    try discriminate;
     destruct p_rest as [|w4 p_rest']; simpl in H; try discriminate;
-    try (destruct w4; simpl in H; try discriminate;
-         try (rewrite pattern_letters_roundtrip in H;
+    try (destruct w4; simpl in H; simpl in Hns; try discriminate;
+         try (rewrite (pattern_letters_roundtrip_normal _ Hns) in H;
               injection H as <-; simpl; lia);
          destruct p_rest' as [|w5 p_rest'']; simpl in H; try discriminate;
-         try (destruct w5; simpl in H; try discriminate;
-              rewrite pattern_letters_roundtrip in H;
+         try (destruct w5; simpl in H; simpl in Hns; try discriminate;
+              rewrite (pattern_letters_roundtrip_normal _ Hns) in H;
               injection H as <-; simpl; lia)).
 Qed.
 
 (** Waqṣ and ʿaql delete a mutaḥarrik (Short syllable), reducing morae by 1. *)
 Lemma waqṣ_reduces_morae : forall p p',
+  no_superlong p = true ->
   apply_waqṣ p = Some p' -> S (pattern_morae p') = pattern_morae p.
 Proof.
-  intros p p' H. unfold apply_waqṣ in H.
+  intros p p' Hns H. unfold apply_waqṣ in H.
   destruct p as [|[] [|[] p_rest]]; try (simpl in H; discriminate).
   - (* Short :: Short :: p_rest *)
+    simpl in Hns.
     change (pattern_to_letters (Short :: Short :: p_rest))
       with (Mutaharrik :: Mutaharrik :: pattern_to_letters p_rest) in H.
     simpl nth_error in H. simpl delete_at in H.
@@ -4907,14 +5070,15 @@ Proof.
       destruct p_rest; [reflexivity | simpl in Ept; destruct w; discriminate].
     + assert (Hl : l = Mutaharrik) by (exact (pattern_to_letters_hd _ _ _ Ept)).
       subst l. rewrite letters_to_pattern_cons_M_M in H.
-      rewrite <- Ept in H. rewrite pattern_letters_roundtrip in H.
+      rewrite <- Ept in H. rewrite (pattern_letters_roundtrip_normal _ Hns) in H.
       injection H as <-. simpl. reflexivity.
   - (* Short :: Long :: p_rest *)
+    simpl in Hns.
     change (pattern_to_letters (Short :: Long :: p_rest))
       with (Mutaharrik :: Mutaharrik :: Sakin :: pattern_to_letters p_rest) in H.
     simpl nth_error in H. simpl delete_at in H.
     rewrite letters_to_pattern_cons_M_S in H.
-    rewrite pattern_letters_roundtrip in H.
+    rewrite (pattern_letters_roundtrip_normal _ Hns) in H.
     injection H as <-. simpl. lia.
 Qed.
 
@@ -4942,14 +5106,21 @@ Proof.
     + assert (Hl : l = Mutaharrik) by (exact (pattern_to_letters_hd _ _ _ Ept)).
       subst l. rewrite letters_to_pattern_cons_M_M in H.
       rewrite <- Ept in H. rewrite pattern_letters_roundtrip in H.
-      injection H as <-. simpl. reflexivity.
+      injection H as <-. simpl. rewrite normalize_pattern_length. reflexivity.
   - (* Short :: Long :: p_rest *)
     change (pattern_to_letters (Short :: Long :: p_rest))
       with (Mutaharrik :: Mutaharrik :: Sakin :: pattern_to_letters p_rest) in H.
     simpl nth_error in H. simpl delete_at in H.
     rewrite letters_to_pattern_cons_M_S in H.
     rewrite pattern_letters_roundtrip in H.
-    injection H as <-. simpl. reflexivity.
+    injection H as <-. simpl. rewrite normalize_pattern_length. reflexivity.
+  - (* Short :: SuperLong :: p_rest — letter-level identical to Short :: Long *)
+    change (pattern_to_letters (Short :: SuperLong :: p_rest))
+      with (Mutaharrik :: Mutaharrik :: Sakin :: pattern_to_letters p_rest) in H.
+    simpl nth_error in H. simpl delete_at in H.
+    rewrite letters_to_pattern_cons_M_S in H.
+    rewrite pattern_letters_roundtrip in H.
+    injection H as <-. simpl. rewrite normalize_pattern_length. reflexivity.
 Qed.
 
 (** ʿAṣb reduces syllable count by 1 on all applicable feet. *)
@@ -4972,7 +5143,7 @@ Proof.
     simpl nth_error in H. simpl replace_at in H.
     rewrite letters_to_pattern_cons_M_S in H.
     rewrite pattern_letters_roundtrip in H.
-    injection H as <-. simpl. reflexivity.
+    injection H as <-. simpl. rewrite normalize_pattern_length. reflexivity.
 Qed.
 
 (** ʿAql reduces syllable count by 1 on all applicable feet. *)
@@ -4995,7 +5166,7 @@ Proof.
     simpl nth_error in H. simpl replace_at in H.
     rewrite letters_to_pattern_cons_M_S in H.
     rewrite pattern_letters_roundtrip in H.
-    injection H as <-. simpl. reflexivity.
+    injection H as <-. simpl. rewrite normalize_pattern_length. reflexivity.
 Qed.
 
 (** Witness: khabn on mustafilun preserves 4-syllable count *)

@@ -13,7 +13,8 @@
 11. Section 11 (Scansion) examples: `scan` on all 16 canonical meter patterns, `scan` on at least one variant per meter, `scan_all` on the Rajaz/Kamil ambiguous pattern plus 2–3 other known overlaps, `taqtii` concatenation verified on variant inputs, `taqtii` segment count verified on every meter.
 12. Section 12 (Rhyme) examples: `is_valid_rhyme` on 0-rawiy, 1-rawiy, 2-rawiy patterns, `is_well_formed_rhyme` on all four named rhyme patterns plus malformed orderings, `ridf_adjacent_rawiy` on ridf-at-end and ridf-separated cases.
 13. Section 13 (Poem Structure) examples: `is_valid_hemistich` on canonical + one variant + one gibberish per meter, `is_valid_qasida` on 1-line, 2-line, rhyme-mismatch, meter-mismatch, and variant-hemistich cases.
-14. Formalize poem sub-genres (ghazal, rubāʿī, maqṭūʿa) as structural predicates over `poem`.
-15. Introduce `SuperLong` weight to distinguish tarfīl from tadhyīl.
-16. Add `Extraction` directives for core computable functions to OCaml or Haskell.
-17. Build an extracted test harness against classical Arabic verse transcriptions.
+14. Formalize ghazal as a length-bounded qaṣīda predicate (5–15 lines, matlaʿ required).
+15. Formalize rubāʿī with AABA rhyme scheme and Hazaj meter constraint (exactly 2 lines).
+16. Formalize maqṭūʿa as a relaxed qaṣīda (optional matlaʿ, 2–5 lines).
+17. Add `Extraction` directives for core computable functions to OCaml or Haskell.
+18. Build an extracted test harness against classical Arabic verse transcriptions.
