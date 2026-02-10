@@ -7865,6 +7865,166 @@ Proof. vm_compute. reflexivity. Qed.
 
 (** End of Section 12: Poem Structure *)
 
+(** * Section 13: Classical Verse Tests *)
+
+(** Scansion of real Mu'allaqat verses against the extracted prosodic engine. *)
+
+(** ** Antara's Mu'allaqa — Kāmil meter *)
+
+(** First hemistich: iḍmār on foot 1, canonical feet 2-3. *)
+Definition antara_sadr : pattern :=
+  [Long; Long; Short; Long;
+   Short; Short; Long; Short; Long;
+   Short; Short; Long; Short; Long].
+
+(** Second hemistich: iḍmār on feet 1-2, canonical foot 3. *)
+Definition antara_ajuz : pattern :=
+  [Long; Long; Short; Long;
+   Long; Long; Short; Long;
+   Short; Short; Long; Short; Long].
+
+Example antara_sadr_scan :
+  scan antara_sadr =
+    ScanVariant Kamil [SimpleZihaf Iḍmār; Canonical; Canonical].
+Proof. vm_compute. reflexivity. Qed.
+
+Example antara_ajuz_scan :
+  scan antara_ajuz =
+    ScanVariant Kamil [SimpleZihaf Iḍmār; SimpleZihaf Iḍmār; Canonical].
+Proof. vm_compute. reflexivity. Qed.
+
+Example antara_sadr_unambiguous :
+  scan_all antara_sadr =
+    [(Kamil, [SimpleZihaf Iḍmār; Canonical; Canonical])].
+Proof. vm_compute. reflexivity. Qed.
+
+Example antara_ajuz_unambiguous :
+  scan_all antara_ajuz =
+    [(Kamil, [SimpleZihaf Iḍmār; SimpleZihaf Iḍmār; Canonical])].
+Proof. vm_compute. reflexivity. Qed.
+
+Example antara_sadr_taqtii :
+  taqtii Kamil antara_sadr =
+    Some [([Long; Long; Short; Long], SimpleZihaf Iḍmār);
+          ([Short; Short; Long; Short; Long], Canonical);
+          ([Short; Short; Long; Short; Long], Canonical)].
+Proof. vm_compute. reflexivity. Qed.
+
+Example antara_ajuz_taqtii :
+  taqtii Kamil antara_ajuz =
+    Some [([Long; Long; Short; Long], SimpleZihaf Iḍmār);
+          ([Long; Long; Short; Long], SimpleZihaf Iḍmār);
+          ([Short; Short; Long; Short; Long], Canonical)].
+Proof. vm_compute. reflexivity. Qed.
+
+(** ** Imru' al-Qays' Mu'allaqa — Ṭawīl meter *)
+
+(** First hemistich: canonical feet 1-3, qabḍ on foot 4. *)
+Definition imru_sadr : pattern :=
+  [Short; Long; Long;
+   Short; Long; Long; Long;
+   Short; Long; Long;
+   Short; Long; Short; Long].
+
+(** Second hemistich: canonical feet 1-2, qabḍ on feet 3-4. *)
+Definition imru_ajuz : pattern :=
+  [Short; Long; Long;
+   Short; Long; Long; Long;
+   Short; Long; Short;
+   Short; Long; Short; Long].
+
+Example imru_sadr_scan :
+  scan imru_sadr =
+    ScanVariant Tawil [Canonical; Canonical; Canonical; SimpleZihaf Qabḍ].
+Proof. vm_compute. reflexivity. Qed.
+
+Example imru_ajuz_scan :
+  scan imru_ajuz =
+    ScanVariant Tawil [Canonical; Canonical; SimpleZihaf Qabḍ; SimpleZihaf Qabḍ].
+Proof. vm_compute. reflexivity. Qed.
+
+Example imru_sadr_unambiguous :
+  scan_all imru_sadr =
+    [(Tawil, [Canonical; Canonical; Canonical; SimpleZihaf Qabḍ])].
+Proof. vm_compute. reflexivity. Qed.
+
+Example imru_ajuz_unambiguous :
+  scan_all imru_ajuz =
+    [(Tawil, [Canonical; Canonical; SimpleZihaf Qabḍ; SimpleZihaf Qabḍ])].
+Proof. vm_compute. reflexivity. Qed.
+
+Example imru_sadr_taqtii :
+  taqtii Tawil imru_sadr =
+    Some [([Short; Long; Long], Canonical);
+          ([Short; Long; Long; Long], Canonical);
+          ([Short; Long; Long], Canonical);
+          ([Short; Long; Short; Long], SimpleZihaf Qabḍ)].
+Proof. vm_compute. reflexivity. Qed.
+
+Example imru_ajuz_taqtii :
+  taqtii Tawil imru_ajuz =
+    Some [([Short; Long; Long], Canonical);
+          ([Short; Long; Long; Long], Canonical);
+          ([Short; Long; Short], SimpleZihaf Qabḍ);
+          ([Short; Long; Short; Long], SimpleZihaf Qabḍ)].
+Proof. vm_compute. reflexivity. Qed.
+
+(** ** Amr ibn Kulthum's Mu'allaqa — Wāfir meter *)
+
+(** أَلَا هُبِّي بِصَحْنِكِ فَاصْبَحِينَا ‖ وَلَا تُبْقِي خُمُورَ الْأَنْدَرِينَا
+    "Arise and bring your cup, give us morning drink /
+     and spare not the wines of al-Andar" *)
+
+(** First hemistich: ʿaṣb on foot 1, canonical feet 2-3.
+    ʾa-lā-hub-bī | bi-ṣaḥ-ni-ki-fāṣ | ba-ḥī-nā *)
+Definition amr_sadr : pattern :=
+  [Short; Long; Long; Long;
+   Short; Long; Short; Short; Long;
+   Short; Long; Long].
+
+(** Second hemistich: ʿaṣb on feet 1-2, canonical foot 3.
+    wa-lā-tub-qī | ḫu-mū-ral-ʾan | da-rī-nā *)
+Definition amr_ajuz : pattern :=
+  [Short; Long; Long; Long;
+   Short; Long; Long; Long;
+   Short; Long; Long].
+
+Example amr_sadr_scan :
+  scan amr_sadr =
+    ScanVariant Wafir [SimpleZihaf ʿAṣb; Canonical; Canonical].
+Proof. vm_compute. reflexivity. Qed.
+
+Example amr_ajuz_scan :
+  scan amr_ajuz =
+    ScanVariant Wafir [SimpleZihaf ʿAṣb; SimpleZihaf ʿAṣb; Canonical].
+Proof. vm_compute. reflexivity. Qed.
+
+Example amr_sadr_unambiguous :
+  scan_all amr_sadr =
+    [(Wafir, [SimpleZihaf ʿAṣb; Canonical; Canonical])].
+Proof. vm_compute. reflexivity. Qed.
+
+Example amr_ajuz_unambiguous :
+  scan_all amr_ajuz =
+    [(Wafir, [SimpleZihaf ʿAṣb; SimpleZihaf ʿAṣb; Canonical])].
+Proof. vm_compute. reflexivity. Qed.
+
+Example amr_sadr_taqtii :
+  taqtii Wafir amr_sadr =
+    Some [([Short; Long; Long; Long], SimpleZihaf ʿAṣb);
+          ([Short; Long; Short; Short; Long], Canonical);
+          ([Short; Long; Long], Canonical)].
+Proof. vm_compute. reflexivity. Qed.
+
+Example amr_ajuz_taqtii :
+  taqtii Wafir amr_ajuz =
+    Some [([Short; Long; Long; Long], SimpleZihaf ʿAṣb);
+          ([Short; Long; Long; Long], SimpleZihaf ʿAṣb);
+          ([Short; Long; Long], Canonical)].
+Proof. vm_compute. reflexivity. Qed.
+
+(** End of Section 13: Classical Verse Tests *)
+
 (** * Conclusion *)
 
 (** The original system dates to c. 760 CE and forms the foundation of
