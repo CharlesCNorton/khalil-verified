@@ -1261,37 +1261,12 @@ Definition is_sabab_thaqil (p : pattern) : bool :=
 Definition is_sabab (p : pattern) : bool :=
   is_sabab_khafif p || is_sabab_thaqil p.
 
-(** Witness: sabab_khafif is [Long] *)
-Example sabab_khafif_witness : sabab_khafif = [Long].
-Proof. reflexivity. Qed.
-
-(** Example: is_sabab_khafif recognizes [Long] *)
+(** is_sabab_khafif recognizes [Long]. *)
 Example is_sabab_khafif_example : is_sabab_khafif [Long] = true.
 Proof. reflexivity. Qed.
 
-(** Counterexample: is_sabab_khafif rejects other patterns *)
-Example is_sabab_khafif_counterexample_short : is_sabab_khafif [Short] = false.
-Proof. reflexivity. Qed.
-
-Example is_sabab_khafif_counterexample_empty : is_sabab_khafif [] = false.
-Proof. reflexivity. Qed.
-
-Example is_sabab_khafif_counterexample_toolong : is_sabab_khafif [Short; Short] = false.
-Proof. reflexivity. Qed.
-
-(** Witness: sabab_thaqil is [Short; Short] *)
-Example sabab_thaqil_witness : sabab_thaqil = [Short; Short].
-Proof. reflexivity. Qed.
-
-(** Example: is_sabab_thaqil recognizes [Short; Short] *)
+(** is_sabab_thaqil recognizes [Short; Short]. *)
 Example is_sabab_thaqil_example : is_sabab_thaqil [Short; Short] = true.
-Proof. reflexivity. Qed.
-
-(** Counterexample: is_sabab_thaqil rejects other patterns *)
-Example is_sabab_thaqil_counterexample_single : is_sabab_thaqil [Short] = false.
-Proof. reflexivity. Qed.
-
-Example is_sabab_thaqil_counterexample_mixed : is_sabab_thaqil [Short; Long] = false.
 Proof. reflexivity. Qed.
 
 (** ** Watad Types *)
@@ -1312,37 +1287,12 @@ Definition is_watad_mafruq (p : pattern) : bool :=
 Definition is_watad (p : pattern) : bool :=
   is_watad_majmu p || is_watad_mafruq p.
 
-(** Witness: watad_majmu is [Short; Long] *)
-Example watad_majmu_witness : watad_majmu = [Short; Long].
-Proof. reflexivity. Qed.
-
-(** Example: is_watad_majmu recognizes [Short; Long] *)
+(** is_watad_majmu recognizes [Short; Long]. *)
 Example is_watad_majmu_example : is_watad_majmu [Short; Long] = true.
 Proof. reflexivity. Qed.
 
-(** Counterexample: is_watad_majmu rejects reversed and other patterns *)
-Example is_watad_majmu_counterexample_reversed : is_watad_majmu [Long; Short] = false.
-Proof. reflexivity. Qed.
-
-Example is_watad_majmu_counterexample_same : is_watad_majmu [Short; Short] = false.
-Proof. reflexivity. Qed.
-
-Example is_watad_majmu_counterexample_single : is_watad_majmu [Short] = false.
-Proof. reflexivity. Qed.
-
-(** Witness: watad_mafruq is [Long; Short] *)
-Example watad_mafruq_witness : watad_mafruq = [Long; Short].
-Proof. reflexivity. Qed.
-
-(** Example: is_watad_mafruq recognizes [Long; Short] *)
+(** is_watad_mafruq recognizes [Long; Short]. *)
 Example is_watad_mafruq_example : is_watad_mafruq [Long; Short] = true.
-Proof. reflexivity. Qed.
-
-(** Counterexample: is_watad_mafruq rejects reversed and other patterns *)
-Example is_watad_mafruq_counterexample_reversed : is_watad_mafruq [Short; Long] = false.
-Proof. reflexivity. Qed.
-
-Example is_watad_mafruq_counterexample_same : is_watad_mafruq [Long; Long] = false.
 Proof. reflexivity. Qed.
 
 (** ** Mutual Exclusion *)
@@ -1357,18 +1307,6 @@ Proof.
   - apply pattern_eqb_eq in H. rewrite H. reflexivity.
 Qed.
 
-(** Witness: [Long] is sabab, not watad *)
-Example sabab_not_watad_witness : is_sabab [Long] = true /\ is_watad [Long] = false.
-Proof. split; reflexivity. Qed.
-
-(** Example: [Short; Short] is sabab, not watad *)
-Example sabab_not_watad_example : is_sabab [Short; Short] = true /\ is_watad [Short; Short] = false.
-Proof. split; reflexivity. Qed.
-
-(** Counterexample: [Short; Long] is watad, not sabab *)
-Example watad_not_sabab_counterexample : is_watad [Short; Long] = true /\ is_sabab [Short; Long] = false.
-Proof. split; reflexivity. Qed.
-
 (** Converse: watad implies not sabab *)
 Lemma watad_not_sabab : forall p, is_watad p = true -> is_sabab p = false.
 Proof.
@@ -1379,15 +1317,7 @@ Proof.
   - apply pattern_eqb_eq in H. rewrite H. reflexivity.
 Qed.
 
-(** Witness: [Short; Long] is watad, not sabab *)
-Example watad_not_sabab_witness : is_watad [Short; Long] = true /\ is_sabab [Short; Long] = false.
-Proof. split; reflexivity. Qed.
-
-(** Example: [Long; Short] is watad, not sabab *)
-Example watad_not_sabab_example : is_watad [Long; Short] = true /\ is_sabab [Long; Short] = false.
-Proof. split; reflexivity. Qed.
-
-(** Counterexample: all four 2-element weight patterns are classified as exactly
+(** All four 2-element weight patterns are classified as exactly
     one of sabab, watad, or neither — no overlap and no gap. *)
 Example building_block_2elem_coverage :
   (* sabab thaqil *)
@@ -1478,15 +1408,7 @@ Proof.
     + constructor.
 Qed.
 
-(** Witness: NoDup all_sabab *)
-Example all_sabab_nodup_witness : NoDup all_sabab.
-Proof. exact all_sabab_nodup. Qed.
-
-(** Witness: NoDup all_watad *)
-Example all_watad_nodup_witness : NoDup all_watad.
-Proof. exact all_watad_nodup. Qed.
-
-(** Example: watad patterns are distinct from sabab patterns (cross-category). *)
+(** Watad patterns are distinct from sabab patterns (cross-category). *)
 Example watad_sabab_disjoint :
   ~ In watad_majmu all_sabab /\ ~ In watad_mafruq all_sabab /\
   ~ In sabab_khafif all_watad /\ ~ In sabab_thaqil all_watad.
@@ -1496,19 +1418,95 @@ Proof.
     repeat (destruct H as [H|H]; try discriminate); contradiction.
 Qed.
 
-(** Counterexample: duplicate watad list fails NoDup *)
-Example all_watad_nodup_counterexample : ~ NoDup [watad_majmu; watad_majmu].
+(** is_sabab classifies exactly the two sabab patterns as true. *)
+Example is_sabab_all_blocks :
+  is_sabab sabab_khafif = true /\
+  is_sabab sabab_thaqil = true /\
+  is_sabab watad_majmu = false /\
+  is_sabab watad_mafruq = false.
+Proof. repeat split; reflexivity. Qed.
+
+(** is_watad classifies exactly the two watad patterns as true. *)
+Example is_watad_all_blocks :
+  is_watad sabab_khafif = false /\
+  is_watad sabab_thaqil = false /\
+  is_watad watad_majmu = true /\
+  is_watad watad_mafruq = true.
+Proof. repeat split; reflexivity. Qed.
+
+(** is_sabab rejects near-miss patterns of various lengths. *)
+Example is_sabab_near_miss :
+  is_sabab [Long; Long] = false /\
+  is_sabab [] = false /\
+  is_sabab [Short] = false /\
+  is_sabab [Short; Long] = false /\
+  is_sabab [Long; Short] = false /\
+  is_sabab [Short; Short; Short] = false.
+Proof. repeat split; reflexivity. Qed.
+
+(** is_watad rejects near-miss patterns of various lengths. *)
+Example is_watad_near_miss :
+  is_watad [Long; Long] = false /\
+  is_watad [] = false /\
+  is_watad [Short] = false /\
+  is_watad [Short; Short] = false /\
+  is_watad [Long] = false /\
+  is_watad [Short; Short; Short] = false.
+Proof. repeat split; reflexivity. Qed.
+
+(** [Long; Long] is the canonical near-miss: correct length for a
+    2-syllable block, but neither sabab nor watad. *)
+Example long_long_neither :
+  is_sabab [Long; Long] = false /\ is_watad [Long; Long] = false.
+Proof. split; reflexivity. Qed.
+
+(** sabab_not_watad exercised on both sabab blocks. *)
+Example sabab_not_watad_on_khafif :
+  is_watad sabab_khafif = false.
+Proof. exact (sabab_not_watad sabab_khafif eq_refl). Qed.
+
+Example sabab_not_watad_on_thaqil :
+  is_watad sabab_thaqil = false.
+Proof. exact (sabab_not_watad sabab_thaqil eq_refl). Qed.
+
+(** watad_not_sabab exercised on both watad blocks. *)
+Example watad_not_sabab_on_majmu :
+  is_sabab watad_majmu = false.
+Proof. exact (watad_not_sabab watad_majmu eq_refl). Qed.
+
+Example watad_not_sabab_on_mafruq :
+  is_sabab watad_mafruq = false.
+Proof. exact (watad_not_sabab watad_mafruq eq_refl). Qed.
+
+(** all_building_blocks contains exactly 4 patterns. *)
+Example all_building_blocks_length :
+  length all_building_blocks = 4.
+Proof. reflexivity. Qed.
+
+(** Every named block is in all_building_blocks. *)
+Example all_building_blocks_membership :
+  In sabab_khafif all_building_blocks /\
+  In sabab_thaqil all_building_blocks /\
+  In watad_majmu all_building_blocks /\
+  In watad_mafruq all_building_blocks.
 Proof.
-  intros H. inversion H as [| x xs Hnotin Hnodup].
-  apply Hnotin. left. reflexivity.
+  unfold all_building_blocks, all_sabab, all_watad. simpl.
+  repeat split.
+  - left. reflexivity.
+  - right. left. reflexivity.
+  - right. right. left. reflexivity.
+  - right. right. right. left. reflexivity.
 Qed.
 
-(** Counterexample: list with duplicates fails NoDup *)
-Example building_blocks_nodup_counterexample : ~ NoDup [sabab_khafif; sabab_khafif].
-Proof.
-  intros H. inversion H as [| x xs Hnotin Hnodup].
-  apply Hnotin. left. reflexivity.
-Qed.
+(** Every block in all_building_blocks is recognized as sabab or watad. *)
+Example all_building_blocks_recognized :
+  forallb (fun p => is_sabab p || is_watad p) all_building_blocks = true.
+Proof. reflexivity. Qed.
+
+(** No block in all_building_blocks is recognized as both. *)
+Example all_building_blocks_exclusive :
+  forallb (fun p => negb (is_sabab p && is_watad p)) all_building_blocks = true.
+Proof. reflexivity. Qed.
 
 (** End of Section 3: Building Blocks *)
 
