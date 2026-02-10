@@ -4768,12 +4768,31 @@ Proof.
   injection H as Hp; subst p; reflexivity.
 Qed.
 
-(** Waqṣ reduces syllable count by 1 on all applicable feet. *)
-Lemma waqṣ_reduces_count : forall f p,
-  apply_waqṣ (foot_pattern f) = Some p -> S (length p) = foot_length f.
+(** Waqṣ reduces syllable count by 1 on any pattern. *)
+Lemma waqṣ_reduces_count : forall p p',
+  apply_waqṣ p = Some p' -> S (length p') = length p.
 Proof.
-  intros f p H. destruct f; simpl in H; try discriminate;
-  injection H as Hp; subst p; reflexivity.
+  intros p p' H. unfold apply_waqṣ in H.
+  destruct p as [|[] [|[] p_rest]]; try (simpl in H; discriminate).
+  - (* Short :: Short :: p_rest *)
+    change (pattern_to_letters (Short :: Short :: p_rest))
+      with (Mutaharrik :: Mutaharrik :: pattern_to_letters p_rest) in H.
+    simpl nth_error in H. simpl delete_at in H.
+    destruct (pattern_to_letters p_rest) as [|l lrest] eqn:Ept.
+    + change (letters_to_pattern (Mutaharrik :: [])) with (Some [Short]) in H.
+      injection H as <-.
+      destruct p_rest; [reflexivity | simpl in Ept; destruct w; discriminate].
+    + assert (Hl : l = Mutaharrik) by (exact (pattern_to_letters_hd _ _ _ Ept)).
+      subst l. rewrite letters_to_pattern_cons_M_M in H.
+      rewrite <- Ept in H. rewrite pattern_letters_roundtrip in H.
+      injection H as <-. simpl. reflexivity.
+  - (* Short :: Long :: p_rest *)
+    change (pattern_to_letters (Short :: Long :: p_rest))
+      with (Mutaharrik :: Mutaharrik :: Sakin :: pattern_to_letters p_rest) in H.
+    simpl nth_error in H. simpl delete_at in H.
+    rewrite letters_to_pattern_cons_M_S in H.
+    rewrite pattern_letters_roundtrip in H.
+    injection H as <-. simpl. reflexivity.
 Qed.
 
 (** ʿAṣb reduces syllable count by 1 on all applicable feet. *)
