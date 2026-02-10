@@ -7660,6 +7660,71 @@ Example qasida_nonempty_witness :
   length (qasida_lines (mk_qasida (mk_annotated_bayt h h r r) [] Hazaj r)) = 1.
 Proof. reflexivity. Qed.
 
+(** ** Ghazal *)
+
+(** A ghazal (غزل) is a length-bounded qaṣīda: 5–15 lines with a
+    required matlaʿ (opening line where both hemistichs rhyme).
+    The matlaʿ requirement is inherited from is_valid_qasida. *)
+
+Definition is_valid_ghazal (q : qasida) : bool :=
+  is_valid_qasida q &&
+  Nat.leb 5 (length (qasida_lines q)) &&
+  Nat.leb (length (qasida_lines q)) 15.
+
+(** A valid ghazal is a valid qaṣīda. *)
+Lemma ghazal_is_qasida : forall q,
+  is_valid_ghazal q = true -> is_valid_qasida q = true.
+Proof.
+  intros q H. unfold is_valid_ghazal in H.
+  apply Bool.andb_true_iff in H. destruct H as [H _].
+  apply Bool.andb_true_iff in H. destruct H as [H _].
+  exact H.
+Qed.
+
+(** A valid ghazal has between 5 and 15 lines. *)
+Lemma ghazal_length_bounds : forall q,
+  is_valid_ghazal q = true ->
+  5 <= length (qasida_lines q) /\ length (qasida_lines q) <= 15.
+Proof.
+  intros q H. unfold is_valid_ghazal in H.
+  apply Bool.andb_true_iff in H. destruct H as [H Hmax].
+  apply Bool.andb_true_iff in H. destruct H as [_ Hmin].
+  apply Nat.leb_le in Hmin. apply Nat.leb_le in Hmax.
+  split; assumption.
+Qed.
+
+(** Witness: valid 5-line ghazal (minimum length). *)
+Example ghazal_witness :
+  let h := meter_pattern Hazaj in
+  let r := mk_rhyme_id 1 Kasra in
+  let r2 := mk_rhyme_id 2 Kasra in
+  let matla := mk_annotated_bayt h h r r in
+  let line := mk_annotated_bayt h h r2 r in
+  is_valid_ghazal (mk_qasida matla [line; line; line; line] Hazaj r) = true.
+Proof. vm_compute. reflexivity. Qed.
+
+(** Counterexample: 4-line poem is too short for ghazal. *)
+Example ghazal_counterexample_short :
+  let h := meter_pattern Hazaj in
+  let r := mk_rhyme_id 1 Kasra in
+  let r2 := mk_rhyme_id 2 Kasra in
+  let matla := mk_annotated_bayt h h r r in
+  let line := mk_annotated_bayt h h r2 r in
+  is_valid_ghazal (mk_qasida matla [line; line; line] Hazaj r) = false.
+Proof. vm_compute. reflexivity. Qed.
+
+(** Counterexample: 16-line poem exceeds ghazal maximum. *)
+Example ghazal_counterexample_long :
+  let h := meter_pattern Hazaj in
+  let r := mk_rhyme_id 1 Kasra in
+  let r2 := mk_rhyme_id 2 Kasra in
+  let matla := mk_annotated_bayt h h r r in
+  let line := mk_annotated_bayt h h r2 r in
+  is_valid_ghazal (mk_qasida matla
+    [line; line; line; line; line; line; line; line;
+     line; line; line; line; line; line; line] Hazaj r) = false.
+Proof. vm_compute. reflexivity. Qed.
+
 (** End of Section 12: Poem Structure *)
 
 (** * Conclusion *)
