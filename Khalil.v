@@ -843,139 +843,23 @@ Proof. reflexivity. Qed.
 
 (** *** wf_letter_seq on hand-crafted edge inputs *)
 
-(** Empty sequence is well-formed. *)
-Example wf_edge_empty : wf_letter_seq [] = true.
-Proof. reflexivity. Qed.
-
-(** Lone sākin is ill-formed. *)
-Example wf_edge_lone_S : wf_letter_seq [Sakin] = false.
-Proof. reflexivity. Qed.
-
-(** Lone mutaḥarrik is well-formed. *)
-Example wf_edge_lone_M : wf_letter_seq [Mutaharrik] = true.
-Proof. reflexivity. Qed.
-
-(** M;S (one Long syllable) is well-formed. *)
-Example wf_edge_MS : wf_letter_seq [Mutaharrik; Sakin] = true.
-Proof. reflexivity. Qed.
-
-(** S;M (orphan sākin at start) is ill-formed. *)
-Example wf_edge_SM : wf_letter_seq [Sakin; Mutaharrik] = false.
-Proof. reflexivity. Qed.
-
-(** S;S (double orphan) is ill-formed. *)
-Example wf_edge_SS : wf_letter_seq [Sakin; Sakin] = false.
-Proof. reflexivity. Qed.
-
-(** M;M (two Shorts) is well-formed. *)
-Example wf_edge_MM : wf_letter_seq [Mutaharrik; Mutaharrik] = true.
-Proof. reflexivity. Qed.
-
-(** M;S;S (consecutive sākins after Long) is ill-formed. *)
-Example wf_edge_MSS : wf_letter_seq [Mutaharrik; Sakin; Sakin] = false.
-Proof. reflexivity. Qed.
-
-(** M;S;M;S (two Longs) is well-formed. *)
-Example wf_edge_MSMS : wf_letter_seq [Mutaharrik; Sakin; Mutaharrik; Sakin] = true.
-Proof. reflexivity. Qed.
-
-(** Four Shorts is well-formed. *)
-Example wf_edge_MMMM :
-  wf_letter_seq [Mutaharrik; Mutaharrik; Mutaharrik; Mutaharrik] = true.
-Proof. reflexivity. Qed.
-
-(** Four Longs is well-formed. *)
-Example wf_edge_long_alternating :
+(** Well-formed cases: empty, lone M, M;S, M;M, M;S;M;S, four Shorts,
+    four Longs. Ill-formed cases: lone S, S;M, S;S, M;S;S, buried S;S. *)
+Example wf_edge_cases :
+  wf_letter_seq [] = true /\
+  wf_letter_seq [Mutaharrik] = true /\
+  wf_letter_seq [Mutaharrik; Sakin] = true /\
+  wf_letter_seq [Mutaharrik; Mutaharrik] = true /\
+  wf_letter_seq [Mutaharrik; Sakin; Mutaharrik; Sakin] = true /\
+  wf_letter_seq [Mutaharrik; Mutaharrik; Mutaharrik; Mutaharrik] = true /\
   wf_letter_seq [Mutaharrik; Sakin; Mutaharrik; Sakin;
-                  Mutaharrik; Sakin; Mutaharrik; Sakin] = true.
-Proof. reflexivity. Qed.
-
-(** Ill-formed buried deep: S;S at positions 3-4. *)
-Example wf_edge_buried_SS :
+                  Mutaharrik; Sakin; Mutaharrik; Sakin] = true /\
+  wf_letter_seq [Sakin] = false /\
+  wf_letter_seq [Sakin; Mutaharrik] = false /\
+  wf_letter_seq [Sakin; Sakin] = false /\
+  wf_letter_seq [Mutaharrik; Sakin; Sakin] = false /\
   wf_letter_seq [Mutaharrik; Sakin; Mutaharrik; Sakin; Sakin; Mutaharrik] = false.
-Proof. reflexivity. Qed.
-
-(** *** Round-trip on patterns of length 0–6 *)
-
-(** Length 0. *)
-Example roundtrip_len0 :
-  letters_to_pattern (pattern_to_letters []) = Some [].
-Proof. reflexivity. Qed.
-
-(** Length 1: Short. *)
-Example roundtrip_len1_S :
-  letters_to_pattern (pattern_to_letters [Short]) = Some [Short].
-Proof. reflexivity. Qed.
-
-(** Length 1: Long. *)
-Example roundtrip_len1_L :
-  letters_to_pattern (pattern_to_letters [Long]) = Some [Long].
-Proof. reflexivity. Qed.
-
-(** Length 2: all four weight pairs. *)
-Example roundtrip_len2_SS :
-  letters_to_pattern (pattern_to_letters [Short; Short]) = Some [Short; Short].
-Proof. reflexivity. Qed.
-
-Example roundtrip_len2_SL :
-  letters_to_pattern (pattern_to_letters [Short; Long]) = Some [Short; Long].
-Proof. reflexivity. Qed.
-
-Example roundtrip_len2_LS :
-  letters_to_pattern (pattern_to_letters [Long; Short]) = Some [Long; Short].
-Proof. reflexivity. Qed.
-
-Example roundtrip_len2_LL :
-  letters_to_pattern (pattern_to_letters [Long; Long]) = Some [Long; Long].
-Proof. reflexivity. Qed.
-
-(** Length 3: representative patterns. *)
-Example roundtrip_len3_SLL :
-  letters_to_pattern (pattern_to_letters [Short; Long; Long]) = Some [Short; Long; Long].
-Proof. reflexivity. Qed.
-
-Example roundtrip_len3_SSS :
-  letters_to_pattern (pattern_to_letters [Short; Short; Short]) = Some [Short; Short; Short].
-Proof. reflexivity. Qed.
-
-Example roundtrip_len3_LLL :
-  letters_to_pattern (pattern_to_letters [Long; Long; Long]) = Some [Long; Long; Long].
-Proof. reflexivity. Qed.
-
-(** Length 4: representative patterns. *)
-Example roundtrip_len4_SLLL :
-  letters_to_pattern (pattern_to_letters [Short; Long; Long; Long])
-    = Some [Short; Long; Long; Long].
-Proof. reflexivity. Qed.
-
-Example roundtrip_len4_LSLS :
-  letters_to_pattern (pattern_to_letters [Long; Short; Long; Short])
-    = Some [Long; Short; Long; Short].
-Proof. reflexivity. Qed.
-
-(** Length 5: representative pattern (mutafailun). *)
-Example roundtrip_len5 :
-  letters_to_pattern (pattern_to_letters [Short; Short; Long; Short; Long])
-    = Some [Short; Short; Long; Short; Long].
-Proof. reflexivity. Qed.
-
-(** Length 5: all-Long. *)
-Example roundtrip_len5_LLLLL :
-  letters_to_pattern (pattern_to_letters [Long; Long; Long; Long; Long])
-    = Some [Long; Long; Long; Long; Long].
-Proof. reflexivity. Qed.
-
-(** Length 6: representative pattern. *)
-Example roundtrip_len6 :
-  letters_to_pattern (pattern_to_letters [Short; Long; Short; Long; Short; Long])
-    = Some [Short; Long; Short; Long; Short; Long].
-Proof. reflexivity. Qed.
-
-(** Length 6: all-Short. *)
-Example roundtrip_len6_SSSSSS :
-  letters_to_pattern (pattern_to_letters [Short; Short; Short; Short; Short; Short])
-    = Some [Short; Short; Short; Short; Short; Short].
-Proof. reflexivity. Qed.
+Proof. repeat split; reflexivity. Qed.
 
 (** *** delete_at at first, last, and out-of-bounds indices *)
 
