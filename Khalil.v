@@ -6428,12 +6428,56 @@ Record bayt : Type := mk_bayt {
 (** A poem is a non-empty list of lines. *)
 Definition poem := list bayt.
 
+(** ** Hemistich Validity *)
+
+(** A hemistich is metrically valid if its syllable pattern decomposes
+    foot-by-foot into legal variants of the meter — the canonical pattern
+    or the result of a legal zihāf or ʿilla. This uses the same
+    match_variant_pattern machinery from Section 10. *)
+
+Definition is_valid_hemistich (h : hemistich) (m : meter) : bool :=
+  match match_variant_pattern h (meter_foot_variants m) with
+  | Some _ => true
+  | None => false
+  end.
+
 (** ** Line Validity *)
 
-(** A line is metrically valid if both hemistichs match the meter. *)
+(** A line is metrically valid if both hemistichs are legal variants
+    of the meter. This accepts the vast majority of real classical
+    Arabic poetry, where virtually every line uses at least one variation. *)
+
 Definition is_valid_bayt (b : bayt) (m : meter) : bool :=
-  pattern_eqb (sadr b) (meter_pattern m) &&
-  pattern_eqb (ajuz b) (meter_pattern m).
+  is_valid_hemistich (sadr b) m &&
+  is_valid_hemistich (ajuz b) m.
+
+(** Exact meter patterns are always valid hemistichs. *)
+Lemma exact_hemistich_valid : forall m,
+  is_valid_hemistich (meter_pattern m) m = true.
+Proof.
+  intros m. unfold is_valid_hemistich.
+  destruct (exact_meter_matches m) as [anns Hmvp].
+  rewrite Hmvp. reflexivity.
+Qed.
+
+(** Exact meter patterns are always valid bayts. *)
+Lemma exact_bayt_valid : forall m,
+  is_valid_bayt (mk_bayt (meter_pattern m) (meter_pattern m)) m = true.
+Proof.
+  intros m. unfold is_valid_bayt. simpl.
+  rewrite Bool.andb_true_iff. split; apply exact_hemistich_valid.
+Qed.
+
+(** Hemistich validity implies legal variant decomposition. *)
+Lemma valid_hemistich_is_legal : forall h m,
+  is_valid_hemistich h m = true ->
+  is_legal_meter_variant h m.
+Proof.
+  intros h m H. unfold is_valid_hemistich in H.
+  destruct (match_variant_pattern h (meter_foot_variants m)) as [anns|] eqn:E;
+    [|discriminate].
+  exact (match_variant_pattern_sound _ _ _ E).
+Qed.
 
 (** ** Poem Validity *)
 
@@ -6448,57 +6492,64 @@ Definition is_valid_poem (p : poem) (m : meter) : bool :=
 Definition is_matla (b : bayt) (m : meter) : bool :=
   is_valid_bayt b m.
 
-(** Witness: a valid Mutaqarib bayt *)
+(** Witness: exact Mutaqarib bayt is valid *)
 Example bayt_witness :
   let h := meter_pattern Mutaqarib in
   is_valid_bayt (mk_bayt h h) Mutaqarib = true.
-Proof. reflexivity. Qed.
+Proof. vm_compute. reflexivity. Qed.
 
 (** Example: a valid two-line Hazaj poem *)
 Example poem_example :
   let h := meter_pattern Hazaj in
   is_valid_poem [mk_bayt h h; mk_bayt h h] Hazaj = true.
-Proof. reflexivity. Qed.
+Proof. vm_compute. reflexivity. Qed.
+
+(** Example: a Rajaz hemistich with khabn on foot 1 is now accepted.
+    khabn on mustafilun: [Long;Long;Short;Long] → [Short;Long;Short;Long].
+    The old exact-match is_valid_bayt would reject this. *)
+Example bayt_variant_example :
+  is_valid_bayt
+    (mk_bayt [Short; Long; Short; Long;
+              Long; Long; Short; Long;
+              Long; Long; Short; Long]
+             (meter_pattern Rajaz))
+    Rajaz = true.
+Proof. vm_compute. reflexivity. Qed.
+
+(** Example: a Kamil hemistich with iḍmār on all three feet is accepted.
+    iḍmār on mutafāʿilun → mustafʿilun = [Long;Long;Short;Long]. *)
+Example bayt_kamil_variant :
+  is_valid_bayt
+    (mk_bayt [Long; Long; Short; Long;
+              Long; Long; Short; Long;
+              Long; Long; Short; Long]
+             (meter_pattern Kamil))
+    Kamil = true.
+Proof. vm_compute. reflexivity. Qed.
+
+(** Example: qaṭʿ (ʿilla) at the terminal foot of Rajaz is accepted. *)
+Example bayt_illa_example :
+  is_valid_bayt
+    (mk_bayt (meter_pattern Rajaz)
+             [Long; Long; Short; Long;
+              Long; Long; Short; Long;
+              Long; Long; Long])
+    Rajaz = true.
+Proof. vm_compute. reflexivity. Qed.
 
 (** Counterexample: mismatched hemistichs fail *)
 Example bayt_counterexample :
   is_valid_bayt (mk_bayt (meter_pattern Tawil) (meter_pattern Basit)) Tawil = false.
-Proof. reflexivity. Qed.
+Proof. vm_compute. reflexivity. Qed.
+
+(** Counterexample: gibberish fails *)
+Example bayt_counterexample_gibberish :
+  is_valid_bayt (mk_bayt [Short; Short; Short] [Short; Short; Short]) Tawil = false.
+Proof. vm_compute. reflexivity. Qed.
 
 (** Counterexample: empty poem is trivially valid (vacuous truth) *)
 Example poem_counterexample_empty :
   is_valid_poem [] Tawil = true.
-Proof. reflexivity. Qed.
-
-(** ** Full Line as Concatenation *)
-
-(** Relates the bayt structure to the flat is_full_line predicate *)
-Lemma bayt_full_line : forall b m,
-  is_valid_bayt b m = true ->
-  is_full_line (sadr b ++ ajuz b) m = true.
-Proof.
-  intros b m H. unfold is_valid_bayt in H.
-  apply Bool.andb_true_iff in H. destruct H as [Hs Ha].
-  apply pattern_eqb_eq in Hs. apply pattern_eqb_eq in Ha.
-  unfold is_full_line. apply pattern_eqb_eq.
-  rewrite Hs, Ha. reflexivity.
-Qed.
-
-(** Witness: bayt_full_line for Hazaj *)
-Example bayt_full_line_witness :
-  let h := meter_pattern Hazaj in
-  is_full_line (h ++ h) Hazaj = true.
-Proof. reflexivity. Qed.
-
-(** Example: bayt_full_line for Kamil *)
-Example bayt_full_line_example :
-  let h := meter_pattern Kamil in
-  is_full_line (h ++ h) Kamil = true.
-Proof. reflexivity. Qed.
-
-(** Counterexample: mismatched hemistichs are not a full line *)
-Example bayt_full_line_counterexample :
-  is_full_line (meter_pattern Tawil ++ meter_pattern Basit) Tawil = false.
 Proof. reflexivity. Qed.
 
 (** ** Rhyme-Aware Poem Structure *)
@@ -6519,21 +6570,21 @@ Record annotated_bayt : Type := mk_annotated_bayt {
 (** In the matlaʿ (opening line), both hemistichs share the same rhyme.
     This distinguishes it from subsequent lines where only the ʿajuz rhymes. *)
 Definition is_matla_proper (b : annotated_bayt) (m : meter) : bool :=
-  pattern_eqb (ab_sadr b) (meter_pattern m) &&
-  pattern_eqb (ab_ajuz b) (meter_pattern m) &&
+  is_valid_hemistich (ab_sadr b) m &&
+  is_valid_hemistich (ab_ajuz b) m &&
   Nat.eqb (ab_sadr_rhyme b) (ab_ajuz_rhyme b).
 
 (** Witness: matlaʿ with matching rhymes *)
 Example matla_proper_witness :
   let h := meter_pattern Mutaqarib in
   is_matla_proper (mk_annotated_bayt h h 1 1) Mutaqarib = true.
-Proof. reflexivity. Qed.
+Proof. vm_compute. reflexivity. Qed.
 
 (** Counterexample: non-matlaʿ line (different rhymes) *)
 Example matla_proper_counterexample :
   let h := meter_pattern Mutaqarib in
   is_matla_proper (mk_annotated_bayt h h 1 2) Mutaqarib = false.
-Proof. reflexivity. Qed.
+Proof. vm_compute. reflexivity. Qed.
 
 (** ** Rhyme Consistency Across Lines *)
 
@@ -6573,8 +6624,8 @@ Definition is_valid_qasida (q : qasida) : bool :=
   let r := qas_rhyme q in
   is_matla_proper (qas_first q) m &&
   forallb (fun b =>
-    pattern_eqb (ab_sadr b) (meter_pattern m) &&
-    pattern_eqb (ab_ajuz b) (meter_pattern m))
+    is_valid_hemistich (ab_sadr b) m &&
+    is_valid_hemistich (ab_ajuz b) m)
     (qas_rest q) &&
   is_rhyme_consistent (qasida_lines q) r.
 
@@ -6582,7 +6633,7 @@ Definition is_valid_qasida (q : qasida) : bool :=
 Example qasida_witness :
   let h := meter_pattern Hazaj in
   is_valid_qasida (mk_qasida (mk_annotated_bayt h h 1 1) [] Hazaj 1) = true.
-Proof. reflexivity. Qed.
+Proof. vm_compute. reflexivity. Qed.
 
 (** Example: valid two-line qasida *)
 Example qasida_example :
@@ -6592,13 +6643,26 @@ Example qasida_example :
       (mk_annotated_bayt h h 1 1)
       [mk_annotated_bayt h h 2 1]
       Hazaj 1) = true.
-Proof. reflexivity. Qed.
+Proof. vm_compute. reflexivity. Qed.
+
+(** Example: qasida with varied hemistich (khabn on Rajaz foot 1) *)
+Example qasida_variant_example :
+  let h_canon := meter_pattern Rajaz in
+  let h_varied := [Short; Long; Short; Long;
+                   Long; Long; Short; Long;
+                   Long; Long; Short; Long] in
+  is_valid_qasida
+    (mk_qasida
+      (mk_annotated_bayt h_canon h_canon 1 1)
+      [mk_annotated_bayt h_varied h_canon 2 1]
+      Rajaz 1) = true.
+Proof. vm_compute. reflexivity. Qed.
 
 (** Counterexample: matlaʿ rhyme mismatch invalidates qasida *)
 Example qasida_counterexample :
   let h := meter_pattern Hazaj in
   is_valid_qasida (mk_qasida (mk_annotated_bayt h h 1 2) [] Hazaj 2) = false.
-Proof. reflexivity. Qed.
+Proof. vm_compute. reflexivity. Qed.
 
 (** ** Non-emptiness Guarantee *)
 
