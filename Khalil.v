@@ -5963,6 +5963,298 @@ Example scan_summary_counterexample :
   scan_summary [Short; Short; Short] = None.
 Proof. reflexivity. Qed.
 
+(** ** Taqṭīʿ: Foot-Boundary Segmentation *)
+
+(** Taqṭīʿ (تقطيع, "cutting") is the process of dividing a verse's flat
+    syllable pattern into its constituent feet according to a given meter.
+    While the scanner (scan) reports which meter matches and what variations
+    were applied, taqṭīʿ returns the actual sub-patterns — the segments
+    at foot boundaries — paired with their annotations.
+
+    Given a meter m and a flat pattern p, taqṭīʿ recovers the list of
+    (segment, annotation) pairs such that:
+    1. Concatenating the segments reconstructs p exactly.
+    2. Each segment is drawn from the legal variants of its foot position.
+    3. The annotation list agrees with what match_variant_pattern produces. *)
+
+(** *** Taqṭīʿ Result Type *)
+
+(** A segmented foot: the actual syllable-weight sub-pattern paired with
+    the variation (if any) that produced it. *)
+
+Definition taqtii_segment := (pattern * foot_annotation)%type.
+
+Definition taqtii_result := list taqtii_segment.
+
+(** *** Segmentation Function *)
+
+(** Recursive foot-by-foot segmentation. Mirrors match_variant_pattern
+    but returns the actual sub-patterns (taken from p via firstn) paired
+    with annotations. Using firstn from p (rather than the variant pattern v)
+    makes the concatenation proof immediate, since firstn/skipn partition p. *)
+
+Fixpoint segment_variant_pattern
+  (p : pattern) (foot_vars : list (list annotated_variant))
+  : option taqtii_result :=
+  match foot_vars with
+  | [] => match p with [] => Some [] | _ => None end
+  | vs :: rest =>
+      (fix try_variants (candidates : list annotated_variant)
+        : option taqtii_result :=
+        match candidates with
+        | [] => None
+        | (v, ann) :: cs =>
+            if pattern_eqb (firstn (length v) p) v then
+              match segment_variant_pattern (skipn (length v) p) rest with
+              | Some segs => Some ((firstn (length v) p, ann) :: segs)
+              | None => try_variants cs
+              end
+            else try_variants cs
+        end) vs
+  end.
+
+(** Top-level taqṭīʿ: segment a flat pattern according to a meter. *)
+
+Definition taqtii (m : meter) (p : pattern) : option taqtii_result :=
+  segment_variant_pattern p (meter_foot_variants m).
+
+(** Witness: taqṭīʿ on exact Hazaj pattern segments into two mafāʿīlun feet. *)
+Example taqtii_witness :
+  taqtii Hazaj (meter_pattern Hazaj) =
+    Some [(mafailun, Canonical); (mafailun, Canonical)].
+Proof. vm_compute. reflexivity. Qed.
+
+(** Example: taqṭīʿ on Rajaz with khabl on foot 1. *)
+Example taqtii_variant_example :
+  taqtii Rajaz [Short; Short; Short; Long;
+                Long; Long; Short; Long;
+                Long; Long; Short; Long] =
+    Some [([Short; Short; Short; Long], CompoundZihaf Khabl);
+          (mustafilun, Canonical);
+          (mustafilun, Canonical)].
+Proof. vm_compute. reflexivity. Qed.
+
+(** Counterexample: gibberish fails. *)
+Example taqtii_counterexample :
+  taqtii Tawil [Short; Short; Short] = None.
+Proof. vm_compute. reflexivity. Qed.
+
+(** *** Concatenation Correctness *)
+
+(** The segments returned by segment_variant_pattern, when concatenated,
+    reconstruct the original pattern exactly. *)
+
+(** Inner loop: if try_variants succeeds, the segments' fst components
+    concatenated with the remainder reconstruct p. *)
+
+Lemma try_variants_concat : forall candidates p rest segs,
+  (fix try_variants (cs : list annotated_variant)
+    : option taqtii_result :=
+    match cs with
+    | [] => None
+    | (v, ann) :: cs' =>
+        if pattern_eqb (firstn (length v) p) v then
+          match segment_variant_pattern (skipn (length v) p) rest with
+          | Some segs => Some ((firstn (length v) p, ann) :: segs)
+          | None => try_variants cs'
+          end
+        else try_variants cs'
+    end) candidates = Some segs ->
+  (forall p' segs',
+    segment_variant_pattern p' rest = Some segs' ->
+    concat (map fst segs') = p') ->
+  concat (map fst segs) = p.
+Proof.
+  induction candidates as [|[v ann] cs IH]; intros p rest segs H IHrec.
+  - discriminate.
+  - simpl in H.
+    destruct (pattern_eqb (firstn (length v) p) v) eqn:Epfx.
+    + destruct (segment_variant_pattern (skipn (length v) p) rest) as [segs'|] eqn:Eseg.
+      * injection H as <-. simpl.
+        rewrite (IHrec _ _ Eseg).
+        apply firstn_skipn.
+      * exact (IH p rest segs H IHrec).
+    + exact (IH p rest segs H IHrec).
+Qed.
+
+(** Main structural lemma: segment_variant_pattern returning Some
+    implies concatenation of segments equals the input pattern. *)
+
+Lemma segment_variant_pattern_concat : forall p foot_vars segs,
+  segment_variant_pattern p foot_vars = Some segs ->
+  concat (map fst segs) = p.
+Proof.
+  intros p foot_vars. revert p.
+  induction foot_vars as [|vs rest IH]; intros p segs H.
+  - simpl in H. destruct p; [injection H as <-; reflexivity | discriminate].
+  - simpl in H.
+    exact (try_variants_concat vs p rest segs H IH).
+Qed.
+
+(** Taqṭīʿ concatenation theorem: the segments reconstruct the input. *)
+
+Theorem taqtii_concat : forall m p segs,
+  taqtii m p = Some segs ->
+  concat (map fst segs) = p.
+Proof.
+  intros m p segs H. unfold taqtii in H.
+  exact (segment_variant_pattern_concat p _ segs H).
+Qed.
+
+(** *** Segment Count Correctness *)
+
+(** The number of segments equals the number of foot positions. *)
+
+Lemma try_variants_seg_length : forall candidates p rest segs,
+  (fix try_variants (cs : list annotated_variant)
+    : option taqtii_result :=
+    match cs with
+    | [] => None
+    | (v, ann) :: cs' =>
+        if pattern_eqb (firstn (length v) p) v then
+          match segment_variant_pattern (skipn (length v) p) rest with
+          | Some segs => Some ((firstn (length v) p, ann) :: segs)
+          | None => try_variants cs'
+          end
+        else try_variants cs'
+    end) candidates = Some segs ->
+  (forall p' segs',
+    segment_variant_pattern p' rest = Some segs' ->
+    length segs' = length rest) ->
+  length segs = S (length rest).
+Proof.
+  induction candidates as [|[v ann] cs IH]; intros p rest segs H IHrec.
+  - discriminate.
+  - simpl in H.
+    destruct (pattern_eqb (firstn (length v) p) v) eqn:Epfx.
+    + destruct (segment_variant_pattern (skipn (length v) p) rest) as [segs'|] eqn:Eseg.
+      * injection H as <-. simpl. f_equal. exact (IHrec _ _ Eseg).
+      * exact (IH p rest segs H IHrec).
+    + exact (IH p rest segs H IHrec).
+Qed.
+
+Lemma segment_variant_pattern_length : forall p foot_vars segs,
+  segment_variant_pattern p foot_vars = Some segs ->
+  length segs = length foot_vars.
+Proof.
+  intros p foot_vars. revert p.
+  induction foot_vars as [|vs rest IH]; intros p segs H.
+  - simpl in H. destruct p; [injection H as <-; reflexivity | discriminate].
+  - simpl in H.
+    exact (try_variants_seg_length vs p rest segs H IH).
+Qed.
+
+(** Taqṭīʿ segment count theorem. *)
+
+Theorem taqtii_segment_count : forall m p segs,
+  taqtii m p = Some segs ->
+  length segs = length (meter_foot_variants m).
+Proof.
+  intros m p segs H. unfold taqtii in H.
+  exact (segment_variant_pattern_length p _ segs H).
+Qed.
+
+(** *** Annotation Agreement with Scanner *)
+
+(** segment_variant_pattern and match_variant_pattern explore the same
+    search tree in the same order. We prove they are related by
+    option_map (map snd): projecting out annotations from segments
+    gives exactly what the scanner returns. The proof uses nested
+    induction — outer on foot_vars, inner on the candidate list —
+    with option_map distributing through each branch. *)
+
+Lemma segment_match_option_map : forall foot_vars p,
+  option_map (map snd) (segment_variant_pattern p foot_vars) =
+  match_variant_pattern p foot_vars.
+Proof.
+  induction foot_vars as [|vs rest IH]; intros p.
+  - simpl. destruct p; reflexivity.
+  - simpl.
+    induction vs as [|[v ann] cs IHcs].
+    + reflexivity.
+    + simpl.
+      destruct (pattern_eqb (firstn (length v) p) v) eqn:Epfx.
+      * pose proof (IH (skipn (length v) p)) as IHrest.
+        destruct (segment_variant_pattern (skipn (length v) p) rest) as [segs'|] eqn:Eseg.
+        -- simpl in IHrest |- *. rewrite <- IHrest. reflexivity.
+        -- simpl in IHrest |- *. rewrite <- IHrest. exact IHcs.
+      * exact IHcs.
+Qed.
+
+(** Taqṭīʿ annotation agreement: taqṭīʿ annotations equal scanner annotations. *)
+
+Theorem taqtii_annotations_agree : forall m p segs,
+  taqtii m p = Some segs ->
+  match_variant_pattern p (meter_foot_variants m) = Some (map snd segs).
+Proof.
+  intros m p segs H. unfold taqtii in H.
+  pose proof (segment_match_option_map (meter_foot_variants m) p) as Hagree.
+  rewrite H in Hagree. simpl in Hagree. symmetry. exact Hagree.
+Qed.
+
+(** *** Segment Variant Membership *)
+
+(** Each segment returned by segment_variant_pattern is drawn from the
+    corresponding foot's variant list. This follows from the structural
+    soundness of the traversal: the prefix match guarantees each segment
+    equals a variant pattern in the candidate list. *)
+
+Lemma try_variants_in_list : forall candidates vs p rest segs,
+  (forall c, In c candidates -> In c vs) ->
+  (fix try_variants (cs : list annotated_variant)
+    : option taqtii_result :=
+    match cs with
+    | [] => None
+    | (v, ann) :: cs' =>
+        if pattern_eqb (firstn (length v) p) v then
+          match segment_variant_pattern (skipn (length v) p) rest with
+          | Some segs => Some ((firstn (length v) p, ann) :: segs)
+          | None => try_variants cs'
+          end
+        else try_variants cs'
+    end) candidates = Some segs ->
+  (forall p' segs',
+    segment_variant_pattern p' rest = Some segs' ->
+    Forall2 (fun seg vs => In (fst seg, snd seg) vs) segs' rest) ->
+  Forall2 (fun seg vs => In (fst seg, snd seg) vs) segs (vs :: rest).
+Proof.
+  induction candidates as [|[v ann] cs IH]; intros vs p rest segs Hsub H IHrec.
+  - discriminate.
+  - simpl in H.
+    destruct (pattern_eqb (firstn (length v) p) v) eqn:Epfx.
+    + destruct (segment_variant_pattern (skipn (length v) p) rest) as [segs'|] eqn:Eseg.
+      * injection H as <-.
+        apply pattern_eqb_eq in Epfx.
+        constructor.
+        -- simpl. rewrite Epfx. exact (Hsub (v, ann) (or_introl eq_refl)).
+        -- exact (IHrec _ _ Eseg).
+      * apply (IH vs p rest segs); [|exact H|exact IHrec].
+        intros c Hin. apply Hsub. right. exact Hin.
+    + apply (IH vs p rest segs); [|exact H|exact IHrec].
+      intros c Hin. apply Hsub. right. exact Hin.
+Qed.
+
+Lemma segment_variant_in_list : forall foot_vars p segs,
+  segment_variant_pattern p foot_vars = Some segs ->
+  Forall2 (fun seg vs => In (fst seg, snd seg) vs) segs foot_vars.
+Proof.
+  induction foot_vars as [|vs rest IH]; intros p segs H.
+  - simpl in H. destruct p; [injection H as <-; constructor | discriminate].
+  - simpl in H.
+    exact (try_variants_in_list vs vs p rest segs
+      (fun c Hin => Hin) H IH).
+Qed.
+
+(** Taqṭīʿ variant membership: each segment is a legal variant of its foot. *)
+
+Theorem taqtii_segments_legal : forall m p segs,
+  taqtii m p = Some segs ->
+  Forall2 (fun seg vs => In (fst seg, snd seg) vs) segs (meter_foot_variants m).
+Proof.
+  intros m p segs H. unfold taqtii in H.
+  exact (segment_variant_in_list _ _ _ H).
+Qed.
+
 (** End of Section 10: Scansion *)
 
 (** * Section 11: Rhyme (Qāfiya) *)
