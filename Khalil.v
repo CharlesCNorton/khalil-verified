@@ -1984,6 +1984,27 @@ Proof. reflexivity. Qed.
 
 (** End of Section 4: The Eight Feet *)
 
+(** ** Ltac: Foot Exhaustion *)
+
+(** Destruct a given [foot] variable, simplify, and try standard solvers. *)
+Ltac case_foot f :=
+  destruct f; simpl in *;
+  try reflexivity; try discriminate; try contradiction.
+
+(** Find a [foot] in the goal context and destruct it. *)
+Ltac exhaust_foot :=
+  match goal with
+  | [ f : foot |- _ ] => case_foot f
+  end.
+
+(** Cross-product case split on two [foot] variables. *)
+Ltac exhaust_foot2 :=
+  match goal with
+  | [ f1 : foot, f2 : foot |- _ ] =>
+      destruct f1, f2; simpl in *;
+      try reflexivity; try discriminate; try contradiction
+  end.
+
 (** * Section 5: The Sixteen Meters (Buḥūr) *)
 
 (** The buḥūr (بحور, "seas") are the sixteen canonical meters of Arabic poetry.
@@ -2420,6 +2441,27 @@ Example khalil_original_counterexample : is_khalil_original Mutadarik = false.
 Proof. reflexivity. Qed.
 
 (** End of Section 5: The Sixteen Meters *)
+
+(** ** Ltac: Meter Exhaustion *)
+
+(** Destruct a given [meter] variable, simplify, and try standard solvers. *)
+Ltac case_meter m :=
+  destruct m; simpl in *;
+  try reflexivity; try discriminate; try contradiction.
+
+(** Find a [meter] in the goal context and destruct it. *)
+Ltac exhaust_meter :=
+  match goal with
+  | [ m : meter |- _ ] => case_meter m
+  end.
+
+(** Cross-product case split on two [meter] variables. *)
+Ltac exhaust_meter2 :=
+  match goal with
+  | [ m1 : meter, m2 : meter |- _ ] =>
+      destruct m1, m2; simpl in *;
+      try reflexivity; try discriminate; try contradiction
+  end.
 
 (** * Section 6: The Five Circles (Dawāʾir) *)
 
@@ -3196,6 +3238,38 @@ Proof. eexists. reflexivity. Qed.
 Example ʿilla_eq_dec_counterexample : exists pf, ʿilla_eq_dec Qaṣr Ḥadhf = right pf.
 Proof. eexists. reflexivity. Qed.
 
+(** ** Ltac: Zihāf and ʿIlla Exhaustion *)
+
+(** Destruct a given [zihaf] variable, simplify, and try standard solvers. *)
+Ltac case_zihaf z :=
+  destruct z; simpl in *;
+  try reflexivity; try discriminate; try contradiction.
+
+(** Find a [zihaf] in the goal context and destruct it. *)
+Ltac exhaust_zihaf :=
+  match goal with
+  | [ z : zihaf |- _ ] => case_zihaf z
+  end.
+
+(** Destruct a given [ʿilla] variable, simplify, and try standard solvers. *)
+Ltac case_ʿilla i :=
+  destruct i; simpl in *;
+  try reflexivity; try discriminate; try contradiction.
+
+(** Find an [ʿilla] in the goal context and destruct it. *)
+Ltac exhaust_ʿilla :=
+  match goal with
+  | [ i : ʿilla |- _ ] => case_ʿilla i
+  end.
+
+(** Cross-product: zihaf × foot. *)
+Ltac exhaust_zihaf_foot :=
+  match goal with
+  | [ z : zihaf, f : foot |- _ ] =>
+      destruct z, f; simpl in *;
+      try reflexivity; try discriminate; try contradiction
+  end.
+
 (** ** Effect on Patterns — Letter-Level Operations *)
 
 (** Zihāf operations are defined at the letter level, as in Khalil's
@@ -3734,6 +3808,33 @@ Definition compound_zihaf_eq_dec (z1 z2 : compound_zihaf)
 Proof.
   destruct z1, z2; try (left; reflexivity); right; discriminate.
 Defined.
+
+(** ** Ltac: Compound Zihāf Exhaustion *)
+
+(** Destruct a given [compound_zihaf] variable, simplify, and try standard solvers. *)
+Ltac case_compound_zihaf z :=
+  destruct z; simpl in *;
+  try reflexivity; try discriminate; try contradiction.
+
+(** Find a [compound_zihaf] in the goal context and destruct it. *)
+Ltac exhaust_compound_zihaf :=
+  match goal with
+  | [ z : compound_zihaf |- _ ] => case_compound_zihaf z
+  end.
+
+(** ** Ltac: Combined Exhaustion *)
+
+(** Try all single-type exhaustion tactics. Solves goals that reduce to
+    exhaustive case analysis on any of the five prosodic finite types. *)
+Ltac exhaust :=
+  simpl in *;
+  try reflexivity; try discriminate; try contradiction;
+  first [ exhaust_foot
+        | exhaust_meter
+        | exhaust_zihaf
+        | exhaust_ʿilla
+        | exhaust_compound_zihaf
+        | fail "exhaust: no prosodic type found in context" ].
 
 (** Compound zihāf application.
     Khazl and naqs use sequential composition because their first
